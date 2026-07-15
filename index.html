@@ -239,9 +239,14 @@
                     <span class="mb-1 block text-sm font-bold text-slate-700">Username</span>
                     <input class="field" x-model.trim="unitForm.username" required>
                   </label>
-                  <label class="block" x-show="!unitForm.id">
+                  <label class="block" x-show="!unitForm.id && (!supabaseReady || config.createUnitFunctionName)">
                     <span class="mb-1 block text-sm font-bold text-slate-700">Initial password</span>
                     <input class="field" type="password" autocomplete="new-password" x-model="unitForm.password" :required="!unitForm.id && !supabaseReady">
+                  </label>
+                  <label class="block" x-show="!unitForm.id && supabaseReady && !config.createUnitFunctionName">
+                    <span class="mb-1 block text-sm font-bold text-slate-700">Resident Auth user ID</span>
+                    <input class="field" x-model.trim="unitForm.auth_user_id" placeholder="Optional Supabase Auth user UUID">
+                    <span class="mt-1 block text-xs font-semibold text-slate-500">Use this if the resident should be able to log in now.</span>
                   </label>
                   <label class="flex items-center gap-3 text-sm font-bold text-slate-700 sm:col-span-2 xl:col-span-1">
                     <input type="checkbox" class="h-5 w-5 rounded border-slate-300 text-teal-700" x-model="unitForm.is_active">
@@ -646,6 +651,7 @@
           landlord_phone: "",
           landlord_email: "",
           username: "",
+          auth_user_id: "",
           password: "",
           is_active: true
         },
@@ -863,21 +869,26 @@
               username: this.unitForm.username,
               is_active: this.unitForm.is_active
             };
+            let saveMessage = "Unit saved";
             if (this.unitForm.id) {
               const { error } = await this.supabase.from("units").update(payload).eq("id", this.unitForm.id);
               if (error) throw error;
             } else {
-              if (!APP_CONFIG.createUnitFunctionName) {
-                throw new Error("New resident logins need a Supabase Edge Function or a manually created Auth user.");
-              }
-              const { error } = await this.supabase.functions.invoke(APP_CONFIG.createUnitFunctionName, {
-                body: { ...payload, password: this.unitForm.password }
-              });
+              const linkedResidentAuth = Boolean(this.unitForm.auth_user_id || APP_CONFIG.createUnitFunctionName);
+              const { error } = APP_CONFIG.createUnitFunctionName
+                ? await this.supabase.functions.invoke(APP_CONFIG.createUnitFunctionName, {
+                    body: { ...payload, password: this.unitForm.password }
+                  })
+                : await this.supabase.from("units").insert({
+                    ...payload,
+                    auth_user_id: this.unitForm.auth_user_id || null
+                  });
               if (error) throw error;
+              saveMessage = linkedResidentAuth ? "Unit saved" : "Unit saved. Create and link a Supabase Auth user later if this resident needs login access.";
             }
             await this.loadAll();
             this.resetUnitForm();
-            this.message = { type: "info", text: "Unit saved" };
+            this.message = { type: "info", text: saveMessage };
           } catch (error) {
             this.message = { type: "error", text: error.message || "Could not save unit" };
           } finally {
@@ -896,6 +907,7 @@
             landlord_phone: unit.landlord_phone || "",
             landlord_email: unit.landlord_email || "",
             username: unit.username || "",
+            auth_user_id: unit.auth_user_id || "",
             password: "",
             is_active: unit.is_active
           };
@@ -913,6 +925,7 @@
             landlord_phone: "",
             landlord_email: "",
             username: "",
+            auth_user_id: "",
             password: "",
             is_active: true
           };
