@@ -367,9 +367,9 @@
                   </select>
                 </div>
                 <div class="hidden overflow-auto scrollbar-thin md:block">
-                  <table class="w-full min-w-[900px] text-left text-sm">
+                  <table class="w-full min-w-[1080px] text-left text-sm">
                     <thead class="border-b border-slate-200 text-xs uppercase text-slate-500">
-                      <tr><th class="py-3">Unit</th><th>Resident</th><th>Month</th><th>Amount</th><th>Status</th><th>Receipt</th><th class="text-right">Actions</th></tr>
+                      <tr><th class="py-3">Unit</th><th>Resident</th><th>Month</th><th>Amount</th><th>Status</th><th>Receipt</th><th>Notes</th><th class="text-right">Actions</th></tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100">
                       <template x-for="charge in filteredCharges" :key="charge.id">
@@ -380,6 +380,7 @@
                           <td class="font-black" x-text="money(charge.amount_owed)"></td>
                           <td><span class="rounded-full px-2.5 py-1 text-xs font-black" :class="charge.status === 'paid' ? 'status-paid' : 'status-unpaid'" x-text="charge.status"></span></td>
                           <td x-text="charge.receipt_number || '-'"></td>
+                          <td class="max-w-xs whitespace-pre-line text-slate-600" x-text="paymentNoteText(charge) || '-'"></td>
                           <td class="text-right">
                             <button x-show="charge.status === 'unpaid'" class="btn btn-primary mr-1" type="button" @click="openPaymentDialog(charge)">
                               <i data-lucide="check" class="h-4 w-4"></i>
@@ -408,6 +409,7 @@
                       <div class="grid gap-2 text-sm">
                         <p><span class="font-bold text-slate-500">Amount:</span> <span class="font-black" x-text="money(charge.amount_owed)"></span></p>
                         <p><span class="font-bold text-slate-500">Receipt:</span> <span x-text="charge.receipt_number || '-'"></span></p>
+                        <p><span class="font-bold text-slate-500">Notes:</span> <span class="whitespace-pre-line" x-text="paymentNoteText(charge) || '-'"></span></p>
                       </div>
                       <div class="mt-4">
                         <button x-show="charge.status === 'unpaid'" class="btn btn-primary w-full" type="button" @click="openPaymentDialog(charge)">
@@ -540,9 +542,9 @@
               <section x-show="view === 'resident-payments'" class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
                 <h2 class="mb-4 text-lg font-black tracking-normal">Payment history</h2>
                 <div class="hidden overflow-auto scrollbar-thin md:block">
-                  <table class="w-full min-w-[720px] text-left text-sm">
+                  <table class="w-full min-w-[860px] text-left text-sm">
                     <thead class="border-b border-slate-200 text-xs uppercase text-slate-500">
-                      <tr><th class="py-3">Month</th><th>Amount</th><th>Status</th><th>Paid date</th><th>Receipt</th><th class="text-right">Download</th></tr>
+                      <tr><th class="py-3">Month</th><th>Amount</th><th>Status</th><th>Paid date</th><th>Receipt</th><th>Notes</th><th class="text-right">Download</th></tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100">
                       <template x-for="charge in charges" :key="charge.id">
@@ -552,6 +554,7 @@
                           <td><span class="rounded-full px-2.5 py-1 text-xs font-black" :class="charge.status === 'paid' ? 'status-paid' : 'status-unpaid'" x-text="charge.status"></span></td>
                           <td x-text="charge.paid_date ? dateLabel(charge.paid_date) : '-'"></td>
                           <td x-text="charge.receipt_number || '-'"></td>
+                          <td class="max-w-xs whitespace-pre-line text-slate-600" x-text="paymentNoteText(charge) || '-'"></td>
                           <td class="text-right">
                             <button x-show="charge.status === 'paid'" class="btn btn-ghost" type="button" @click="downloadReceipt(charge)">
                               <i data-lucide="download" class="h-4 w-4"></i>
@@ -576,6 +579,7 @@
                         <p><span class="font-bold text-slate-500">Amount:</span> <span class="font-black" x-text="money(charge.amount_owed)"></span></p>
                         <p><span class="font-bold text-slate-500">Paid date:</span> <span x-text="charge.paid_date ? dateLabel(charge.paid_date) : '-'"></span></p>
                         <p><span class="font-bold text-slate-500">Receipt:</span> <span x-text="charge.receipt_number || '-'"></span></p>
+                        <p><span class="font-bold text-slate-500">Notes:</span> <span class="whitespace-pre-line" x-text="paymentNoteText(charge) || '-'"></span></p>
                       </div>
                       <button x-show="charge.status === 'paid'" class="btn btn-ghost mt-4 w-full" type="button" @click="downloadReceipt(charge)">
                         <i data-lucide="download" class="h-4 w-4"></i>
@@ -1221,15 +1225,17 @@
             ["Amount paid", this.money(charge.amount_owed)],
             ["Date paid", charge.paid_date ? this.dateLabel(charge.paid_date) : "-"],
             ["Payment method", charge.payment_method || this.methodFromNotes(charge.notes) || "-"],
-            ["Reference", charge.payment_reference || this.referenceFromNotes(charge.notes) || "-"]
+            ["Reference", charge.payment_reference || this.referenceFromNotes(charge.notes) || "-"],
+            ["Notes", this.paymentNoteText(charge) || "-"]
           ];
           let y = 170;
           rows.forEach(([label, value]) => {
             doc.setFont("helvetica", "bold");
             doc.text(label, 48, y);
             doc.setFont("helvetica", "normal");
-            doc.text(String(value), 210, y);
-            y += 32;
+            const lines = doc.splitTextToSize(String(value), 330);
+            doc.text(lines, 210, y);
+            y += Math.max(32, lines.length * 14 + 18);
           });
           doc.setDrawColor(203, 213, 225);
           doc.line(48, y + 10, 547, y + 10);
@@ -1281,6 +1287,13 @@
         referenceFromNotes(notes) {
           const match = String(notes || "").match(/^Reference:\s*(.+)$/m);
           return match ? match[1] : "";
+        },
+
+        paymentNoteText(charge) {
+          const notes = String(charge?.notes || "").trim();
+          if (!notes) return "";
+          const match = notes.match(/^Notes:\s*([\s\S]+)$/m);
+          return (match ? match[1] : notes).trim();
         },
 
         unitName(charge) {
@@ -1351,7 +1364,7 @@
           const query = this.chargeFilter.toLowerCase();
           return this.charges.filter((charge) => {
             const matchesStatus = this.chargeStatusFilter === "all" || charge.status === this.chargeStatusFilter;
-            const matchesQuery = [this.unitNumber(charge), this.residentName(charge), charge.receipt_number, this.monthLabel(charge.charge_month)]
+            const matchesQuery = [this.unitNumber(charge), this.residentName(charge), charge.receipt_number, this.paymentNoteText(charge), this.monthLabel(charge.charge_month)]
               .some((value) => String(value || "").toLowerCase().includes(query));
             return matchesStatus && matchesQuery;
           }).sort((a, b) => String(b.charge_month).localeCompare(String(a.charge_month)));
