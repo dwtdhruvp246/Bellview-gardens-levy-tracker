@@ -233,20 +233,22 @@
                   </label>
                   <label class="block">
                     <span class="mb-1 block text-sm font-bold text-slate-700">Landlord email</span>
-                    <input class="field" type="email" x-model.trim="unitForm.landlord_email">
+                    <input class="field" type="email" x-model.trim="unitForm.landlord_email" required>
                   </label>
                   <label class="block">
                     <span class="mb-1 block text-sm font-bold text-slate-700">Username</span>
                     <input class="field" x-model.trim="unitForm.username" required>
                   </label>
-                  <label class="block" x-show="!unitForm.id && (!supabaseReady || config.createUnitFunctionName)">
-                    <span class="mb-1 block text-sm font-bold text-slate-700">Initial password</span>
-                    <input class="field" type="password" autocomplete="new-password" x-model="unitForm.password" :required="!unitForm.id && !supabaseReady">
-                  </label>
-                  <label class="block" x-show="!unitForm.id && supabaseReady && !config.createUnitFunctionName">
-                    <span class="mb-1 block text-sm font-bold text-slate-700">Resident Auth user ID</span>
-                    <input class="field" x-model.trim="unitForm.auth_user_id" placeholder="Optional Supabase Auth user UUID">
-                    <span class="mt-1 block text-xs font-semibold text-slate-500">Use this if the resident should be able to log in now.</span>
+                  <label class="block" x-show="!unitForm.id">
+                    <span class="mb-1 block text-sm font-bold text-slate-700">Resident PIN</span>
+                    <div class="flex gap-2">
+                      <input class="field" inputmode="numeric" maxlength="6" autocomplete="new-password" x-model.trim="unitForm.password" required>
+                      <button class="btn btn-ghost shrink-0" type="button" @click="generateUnitPin">
+                        <i data-lucide="dice-5" class="h-4 w-4"></i>
+                        <span>Generate</span>
+                      </button>
+                    </div>
+                    <span class="mt-1 block text-xs font-semibold text-slate-500">Residents use this 6-digit PIN as their password.</span>
                   </label>
                   <label class="flex items-center gap-3 text-sm font-bold text-slate-700 sm:col-span-2 xl:col-span-1">
                     <input type="checkbox" class="h-5 w-5 rounded border-slate-300 text-teal-700" x-model="unitForm.is_active">
@@ -268,9 +270,9 @@
                   <input class="field md:max-w-xs" placeholder="Filter units" x-model.trim="unitFilter">
                 </div>
                 <div class="hidden overflow-auto scrollbar-thin md:block">
-                  <table class="w-full min-w-[1360px] text-left text-sm">
+                  <table class="w-full min-w-[1460px] text-left text-sm">
                     <thead class="border-b border-slate-200 text-xs uppercase text-slate-500">
-                      <tr><th class="py-3">Unit</th><th>Resident</th><th>Resident phone</th><th>Resident email</th><th>Landlord</th><th>Landlord phone</th><th>Landlord email</th><th>Username</th><th>Status</th><th class="text-right">Actions</th></tr>
+                      <tr><th class="py-3">Unit</th><th>Resident</th><th>Resident phone</th><th>Resident email</th><th>Landlord</th><th>Landlord phone</th><th>Landlord email</th><th>Username</th><th>PIN</th><th>Status</th><th class="text-right">Actions</th></tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100">
                       <template x-for="unit in filteredUnits" :key="unit.id">
@@ -283,12 +285,15 @@
                           <td x-text="unit.landlord_phone || '-'"></td>
                           <td x-text="unit.landlord_email || '-'"></td>
                           <td x-text="unit.username"></td>
+                          <td class="font-black" x-text="unit.login_password || '-'"></td>
                           <td>
                             <span class="rounded-full px-2.5 py-1 text-xs font-black" :class="unit.is_active ? 'bg-teal-50 text-teal-800' : 'bg-slate-100 text-slate-600'" x-text="unit.is_active ? 'Active' : 'Inactive'"></span>
                           </td>
                           <td class="text-right">
                             <button class="btn btn-ghost mr-1" type="button" @click="editUnit(unit)"><i data-lucide="pencil" class="h-4 w-4"></i></button>
-                            <button class="btn btn-ghost" type="button" @click="toggleUnit(unit)"><i :data-lucide="unit.is_active ? 'pause' : 'play'" class="h-4 w-4"></i></button>
+                            <button class="btn btn-ghost mr-1" type="button" @click="resetUnitPassword(unit)" title="Generate new PIN"><i data-lucide="key-round" class="h-4 w-4"></i></button>
+                            <button class="btn btn-ghost mr-1" type="button" @click="toggleUnit(unit)"><i :data-lucide="unit.is_active ? 'pause' : 'play'" class="h-4 w-4"></i></button>
+                            <button class="btn btn-danger" type="button" @click="deleteUnit(unit)"><i data-lucide="trash-2" class="h-4 w-4"></i></button>
                           </td>
                         </tr>
                       </template>
@@ -313,10 +318,13 @@
                         <p><span class="font-bold text-slate-500">Landlord phone:</span> <span x-text="unit.landlord_phone || '-'"></span></p>
                         <p><span class="font-bold text-slate-500">Landlord email:</span> <span x-text="unit.landlord_email || '-'"></span></p>
                         <p><span class="font-bold text-slate-500">Username:</span> <span x-text="unit.username"></span></p>
+                        <p><span class="font-bold text-slate-500">PIN:</span> <span class="font-black" x-text="unit.login_password || '-'"></span></p>
                       </div>
                       <div class="mt-4 grid grid-cols-2 gap-2">
                         <button class="btn btn-ghost" type="button" @click="editUnit(unit)"><i data-lucide="pencil" class="h-4 w-4"></i><span>Edit</span></button>
+                        <button class="btn btn-ghost" type="button" @click="resetUnitPassword(unit)"><i data-lucide="key-round" class="h-4 w-4"></i><span>New PIN</span></button>
                         <button class="btn btn-ghost" type="button" @click="toggleUnit(unit)"><i :data-lucide="unit.is_active ? 'pause' : 'play'" class="h-4 w-4"></i><span x-text="unit.is_active ? 'Pause' : 'Activate'"></span></button>
+                        <button class="btn btn-danger" type="button" @click="deleteUnit(unit)"><i data-lucide="trash-2" class="h-4 w-4"></i><span>Delete</span></button>
                       </div>
                     </article>
                   </template>
@@ -651,8 +659,8 @@
           landlord_phone: "",
           landlord_email: "",
           username: "",
-          auth_user_id: "",
           password: "",
+          login_password: "",
           is_active: true
         },
         rateForm: { amount: null, effective_month: "" },
@@ -695,10 +703,10 @@
 
         seedDemo() {
           this.units = [
-            { id: "u1", unit_number: "1", resident_name: "Tariro Moyo", resident_phone: "+263 77 111 0001", resident_email: "tariro@example.com", landlord_name: "Mavis Moyo", landlord_phone: "+263 77 900 0001", landlord_email: "mavis@example.com", username: "unit1", is_active: true },
-            { id: "u2", unit_number: "7", resident_name: "Nyasha Dube", resident_phone: "+263 77 111 0007", resident_email: "nyasha@example.com", landlord_name: "David Dube", landlord_phone: "+263 77 900 0007", landlord_email: "david@example.com", username: "unit7", is_active: true },
-            { id: "u3", unit_number: "12", resident_name: "Amina Patel", resident_phone: "+263 77 111 0012", resident_email: "amina@example.com", landlord_name: "Farai Patel", landlord_phone: "+263 77 900 0012", landlord_email: "farai@example.com", username: "unit12", is_active: true },
-            { id: "u4", unit_number: "18", resident_name: "Kuda Ncube", resident_phone: "+263 77 111 0018", resident_email: "kuda@example.com", landlord_name: "Lindiwe Ncube", landlord_phone: "+263 77 900 0018", landlord_email: "lindiwe@example.com", username: "unit18", is_active: false }
+            { id: "u1", unit_number: "1", resident_name: "Tariro Moyo", resident_phone: "+263 77 111 0001", resident_email: "tariro@example.com", landlord_name: "Mavis Moyo", landlord_phone: "+263 77 900 0001", landlord_email: "mavis@example.com", username: "unit1", login_password: "204918", is_active: true },
+            { id: "u2", unit_number: "7", resident_name: "Nyasha Dube", resident_phone: "+263 77 111 0007", resident_email: "nyasha@example.com", landlord_name: "David Dube", landlord_phone: "+263 77 900 0007", landlord_email: "david@example.com", username: "unit7", login_password: "719402", is_active: true },
+            { id: "u3", unit_number: "12", resident_name: "Amina Patel", resident_phone: "+263 77 111 0012", resident_email: "amina@example.com", landlord_name: "Farai Patel", landlord_phone: "+263 77 900 0012", landlord_email: "farai@example.com", username: "unit12", login_password: "884120", is_active: true },
+            { id: "u4", unit_number: "18", resident_name: "Kuda Ncube", resident_phone: "+263 77 111 0018", resident_email: "kuda@example.com", landlord_name: "Lindiwe Ncube", landlord_phone: "+263 77 900 0018", landlord_email: "lindiwe@example.com", username: "unit18", login_password: "501773", is_active: false }
           ];
           this.rates = [
             { id: "r2", amount: 85, effective_from: this.monthStart(this.chargeMonth), created_at: new Date().toISOString() },
@@ -844,6 +852,40 @@
           }
         },
 
+        generatePinValue() {
+          return String(Math.floor(100000 + Math.random() * 900000));
+        },
+
+        generateUnitPin() {
+          this.unitForm.password = this.generatePinValue();
+          this.refreshIcons();
+        },
+
+        unitAuthClient() {
+          return window.supabase.createClient(APP_CONFIG.supabaseUrl, APP_CONFIG.supabaseAnonKey, {
+            auth: {
+              persistSession: false,
+              autoRefreshToken: false,
+              detectSessionInUrl: false,
+              storageKey: `bellview-unit-auth-${Date.now()}`
+            }
+          });
+        },
+
+        async createResidentAuthUser(username, pin) {
+          const authClient = this.unitAuthClient();
+          const email = this.usernameToEmail(username);
+          const { data, error } = await authClient.auth.signUp({
+            email,
+            password: pin,
+            options: { data: { username } }
+          });
+          await authClient.auth.signOut();
+          if (error) throw error;
+          if (!data.user?.id) throw new Error("Resident Auth user was not created");
+          return data.user.id;
+        },
+
         async saveUnit() {
           try {
             if (!this.supabaseReady) {
@@ -852,7 +894,7 @@
                 const index = this.units.findIndex((item) => item.id === this.unitForm.id);
                 this.units[index] = { ...this.units[index], ...unit };
               } else {
-                this.units.push({ ...unit, id: crypto.randomUUID() });
+                this.units.push({ ...unit, login_password: password, id: crypto.randomUUID() });
               }
               this.resetUnitForm();
               this.message = { type: "info", text: "Unit saved" };
@@ -867,6 +909,7 @@
               landlord_phone: this.unitForm.landlord_phone,
               landlord_email: this.unitForm.landlord_email,
               username: this.unitForm.username,
+              login_password: this.unitForm.id ? this.unitForm.login_password : this.unitForm.password,
               is_active: this.unitForm.is_active
             };
             let saveMessage = "Unit saved";
@@ -874,17 +917,16 @@
               const { error } = await this.supabase.from("units").update(payload).eq("id", this.unitForm.id);
               if (error) throw error;
             } else {
-              const linkedResidentAuth = Boolean(this.unitForm.auth_user_id || APP_CONFIG.createUnitFunctionName);
-              const { error } = APP_CONFIG.createUnitFunctionName
-                ? await this.supabase.functions.invoke(APP_CONFIG.createUnitFunctionName, {
-                    body: { ...payload, password: this.unitForm.password }
-                  })
-                : await this.supabase.from("units").insert({
-                    ...payload,
-                    auth_user_id: this.unitForm.auth_user_id || null
-                  });
+              if (!this.unitForm.password || !/^\d{6}$/.test(this.unitForm.password)) {
+                throw new Error("Generate or enter a 6-digit resident PIN");
+              }
+              const authUserId = await this.createResidentAuthUser(this.unitForm.username, this.unitForm.password);
+              const { error } = await this.supabase.from("units").insert({
+                ...payload,
+                auth_user_id: authUserId
+              });
               if (error) throw error;
-              saveMessage = linkedResidentAuth ? "Unit saved" : "Unit saved. Create and link a Supabase Auth user later if this resident needs login access.";
+              saveMessage = "Unit saved. Resident can log in with the unit username and generated PIN.";
             }
             await this.loadAll();
             this.resetUnitForm();
@@ -907,8 +949,8 @@
             landlord_phone: unit.landlord_phone || "",
             landlord_email: unit.landlord_email || "",
             username: unit.username || "",
-            auth_user_id: unit.auth_user_id || "",
             password: "",
+            login_password: unit.login_password || "",
             is_active: unit.is_active
           };
           this.refreshIcons();
@@ -925,8 +967,8 @@
             landlord_phone: "",
             landlord_email: "",
             username: "",
-            auth_user_id: "",
             password: "",
+            login_password: "",
             is_active: true
           };
         },
@@ -934,6 +976,57 @@
         async toggleUnit(unit) {
           this.editUnit({ ...unit, is_active: !unit.is_active });
           await this.saveUnit();
+        },
+
+        async resetUnitPassword(unit) {
+          try {
+            const newPin = this.generatePinValue();
+            if (!this.supabaseReady) {
+              unit.login_password = newPin;
+              this.message = { type: "info", text: `New PIN for unit ${unit.unit_number}: ${newPin}` };
+              this.refreshIcons();
+              return;
+            }
+            if (!unit.login_password) {
+              throw new Error("No current PIN is saved for this unit. Create a new Auth user or set the password in Supabase first.");
+            }
+            const authClient = this.unitAuthClient();
+            const email = this.usernameToEmail(unit.username);
+            const signIn = await authClient.auth.signInWithPassword({ email, password: unit.login_password });
+            if (signIn.error) throw signIn.error;
+            const update = await authClient.auth.updateUser({ password: newPin });
+            await authClient.auth.signOut();
+            if (update.error) throw update.error;
+            const { error } = await this.supabase.from("units").update({ login_password: newPin }).eq("id", unit.id);
+            if (error) throw error;
+            await this.loadAll();
+            this.message = { type: "info", text: `New PIN for unit ${unit.unit_number}: ${newPin}` };
+          } catch (error) {
+            this.message = { type: "error", text: error.message || "Could not generate a new PIN" };
+          } finally {
+            this.refreshIcons();
+          }
+        },
+
+        async deleteUnit(unit) {
+          try {
+            if (!confirm(`Delete unit ${unit.unit_number}? This cannot be undone.`)) return;
+            if (!this.supabaseReady) {
+              this.units = this.units.filter((item) => item.id !== unit.id);
+              this.charges = this.charges.filter((charge) => charge.unit_id !== unit.id);
+              this.message = { type: "info", text: "Unit deleted" };
+              this.refreshIcons();
+              return;
+            }
+            const { error } = await this.supabase.rpc("delete_unit", { p_unit_id: unit.id });
+            if (error) throw error;
+            await this.loadAll();
+            this.message = { type: "info", text: "Unit deleted" };
+          } catch (error) {
+            this.message = { type: "error", text: error.message || "Could not delete unit" };
+          } finally {
+            this.refreshIcons();
+          }
         },
 
         async setRate() {
