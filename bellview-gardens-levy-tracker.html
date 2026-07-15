@@ -1,0 +1,1208 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bellview Gardens Levy Tracker</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    [x-cloak] { display: none !important; }
+    html { color-scheme: light; }
+    body {
+      min-height: 100vh;
+      background:
+        linear-gradient(135deg, rgba(20, 184, 166, .08), transparent 34%),
+        linear-gradient(315deg, rgba(245, 158, 11, .10), transparent 30%),
+        #f6f7f9;
+      letter-spacing: 0;
+    }
+    .scrollbar-thin::-webkit-scrollbar { height: 8px; width: 8px; }
+    .scrollbar-thin::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 999px; }
+    .tab-active { background: #111827; color: white; }
+    .tab-idle { color: #475569; }
+    .field {
+      width: 100%;
+      border: 1px solid #d1d5db;
+      border-radius: 8px;
+      background: white;
+      padding: .62rem .75rem;
+      outline: none;
+    }
+    .field:focus { border-color: #0f766e; box-shadow: 0 0 0 3px rgba(15, 118, 110, .15); }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: .45rem;
+      border-radius: 8px;
+      padding: .62rem .85rem;
+      font-weight: 700;
+      font-size: .875rem;
+      transition: background .15s ease, color .15s ease, border-color .15s ease;
+      min-height: 2.5rem;
+    }
+    .btn-primary { background: #0f766e; color: white; }
+    .btn-primary:hover { background: #115e59; }
+    .btn-dark { background: #111827; color: white; }
+    .btn-dark:hover { background: #030712; }
+    .btn-ghost { background: white; color: #334155; border: 1px solid #d1d5db; }
+    .btn-ghost:hover { background: #f8fafc; }
+    .btn-danger { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+    .status-paid { background: #dcfce7; color: #166534; }
+    .status-unpaid { background: #fef3c7; color: #92400e; }
+  </style>
+</head>
+<body class="text-slate-900 antialiased" x-data="levyApp()" x-init="init()" x-cloak>
+  <div class="min-h-screen">
+    <template x-if="!session">
+      <main class="mx-auto flex min-h-screen w-full max-w-lg items-center px-4 py-8">
+          <form class="w-full rounded-lg border border-slate-200 bg-white p-6 shadow-xl md:p-8" @submit.prevent="login">
+            <div class="mb-8">
+              <h2 class="text-2xl font-black tracking-normal">Sign in</h2>
+              <p class="mt-2 text-sm text-slate-500">Username and password</p>
+            </div>
+            <div class="space-y-4">
+              <label class="block">
+                <span class="mb-1 block text-sm font-bold text-slate-700">Username</span>
+                <input class="field" autocomplete="username" x-model.trim="loginForm.username" required>
+              </label>
+              <label class="block">
+                <span class="mb-1 block text-sm font-bold text-slate-700">Password</span>
+                <input class="field" type="password" autocomplete="current-password" x-model="loginForm.password" required>
+              </label>
+              <button class="btn btn-primary w-full" type="submit" :disabled="busy">
+                <i data-lucide="log-in" class="h-4 w-4"></i>
+                <span x-text="busy ? 'Signing in...' : 'Sign in'"></span>
+              </button>
+              <p class="min-h-5 text-sm font-semibold" :class="message.type === 'error' ? 'text-red-700' : 'text-teal-700'" x-text="message.text"></p>
+            </div>
+            <div x-show="!supabaseReady" class="mt-8 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+              <p class="font-black">Demo mode</p>
+              <div class="mt-2 grid gap-2 sm:grid-cols-2">
+                <button type="button" class="btn btn-ghost bg-white" @click="quickLogin('admin')">Admin demo</button>
+                <button type="button" class="btn btn-ghost bg-white" @click="quickLogin('unit12')">Resident demo</button>
+              </div>
+            </div>
+          </form>
+      </main>
+    </template>
+
+    <template x-if="session">
+      <div class="min-h-screen">
+        <header class="border-b border-slate-200 bg-white/95 backdrop-blur">
+          <div class="mx-auto flex max-w-[1600px] flex-col gap-4 px-3 py-4 sm:px-4 md:flex-row md:items-center md:justify-between">
+            <div class="flex items-center gap-3">
+              <div class="grid h-10 w-10 place-items-center rounded-lg bg-slate-950 text-sm font-black text-white">BG</div>
+              <div>
+                <p class="text-xs font-black uppercase tracking-[.18em] text-teal-700" x-text="roleLabel"></p>
+                <h1 class="text-xl font-black tracking-normal">Bellview Gardens</h1>
+              </div>
+            </div>
+            <div class="flex flex-wrap items-center gap-2">
+              <template x-if="role === 'admin'">
+                <nav class="flex max-w-full overflow-x-auto rounded-lg border border-slate-200 bg-slate-50 p-1 scrollbar-thin">
+                  <template x-for="item in adminTabs" :key="item.id">
+                    <button class="whitespace-nowrap rounded-md px-3 py-2 text-sm font-bold" :class="view === item.id ? 'tab-active' : 'tab-idle'" type="button" @click="view = item.id; refreshIcons()" x-text="item.label"></button>
+                  </template>
+                </nav>
+              </template>
+              <button class="btn btn-ghost" type="button" @click="logout">
+                <i data-lucide="log-out" class="h-4 w-4"></i>
+                <span>Sign out</span>
+              </button>
+            </div>
+          </div>
+        </header>
+
+        <main class="mx-auto max-w-[1600px] px-3 py-4 sm:px-4 sm:py-6">
+          <template x-if="role === 'admin' && view === 'dashboard'">
+            <section class="space-y-6">
+              <div class="grid gap-4 md:grid-cols-4">
+                <template x-for="tile in dashboardTiles" :key="tile.label">
+                  <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                    <div class="flex items-center justify-between">
+                      <p class="text-sm font-bold text-slate-500" x-text="tile.label"></p>
+                      <i :data-lucide="tile.icon" class="h-5 w-5 text-slate-400"></i>
+                    </div>
+                    <p class="mt-3 text-2xl font-black tracking-normal" x-text="tile.value"></p>
+                  </div>
+                </template>
+              </div>
+
+              <div class="grid gap-6 lg:grid-cols-[1fr_1fr]">
+                <section class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                  <div class="mb-4 flex items-center justify-between">
+                    <h2 class="text-lg font-black tracking-normal">Units in arrears</h2>
+                    <span class="rounded-full bg-red-50 px-3 py-1 text-xs font-black text-red-700" x-text="arrears.length"></span>
+                  </div>
+                  <div class="hidden overflow-auto scrollbar-thin sm:block">
+                    <table class="w-full min-w-[520px] text-left text-sm">
+                      <thead class="border-b border-slate-200 text-xs uppercase text-slate-500">
+                        <tr><th class="py-3">Unit</th><th>Resident</th><th>Months</th><th class="text-right">Amount</th></tr>
+                      </thead>
+                      <tbody class="divide-y divide-slate-100">
+                        <template x-for="row in arrears" :key="row.unit_number">
+                          <tr>
+                            <td class="py-3 font-black" x-text="row.unit_number"></td>
+                            <td x-text="row.resident_name || '-'"></td>
+                            <td x-text="row.months"></td>
+                            <td class="text-right font-black" x-text="money(row.amount)"></td>
+                          </tr>
+                        </template>
+                        <tr x-show="arrears.length === 0"><td colspan="4" class="py-8 text-center text-slate-500">No arrears</td></tr>
+                      </tbody>
+                    </table>
+                  </div>
+                  <div class="grid gap-3 sm:hidden">
+                    <template x-for="row in arrears" :key="row.unit_number">
+                      <article class="rounded-lg border border-slate-200 p-4">
+                        <div class="flex items-start justify-between gap-3">
+                          <div>
+                            <p class="text-xs font-black uppercase tracking-[.14em] text-slate-500">Unit</p>
+                            <h3 class="text-lg font-black" x-text="row.unit_number"></h3>
+                            <p class="text-sm text-slate-500" x-text="row.resident_name || '-'"></p>
+                          </div>
+                          <p class="font-black text-red-700" x-text="money(row.amount)"></p>
+                        </div>
+                        <p class="mt-3 text-sm"><span class="font-bold text-slate-500">Unpaid months:</span> <span x-text="row.months"></span></p>
+                      </article>
+                    </template>
+                    <p x-show="arrears.length === 0" class="py-8 text-center text-sm text-slate-500">No arrears</p>
+                  </div>
+                </section>
+
+                <section class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                  <div class="mb-4 flex items-center justify-between">
+                    <h2 class="text-lg font-black tracking-normal">Recent payments</h2>
+                    <button class="btn btn-ghost" type="button" @click="loadAll">
+                      <i data-lucide="refresh-cw" class="h-4 w-4"></i>
+                    </button>
+                  </div>
+                  <div class="space-y-3">
+                    <template x-for="charge in recentPayments" :key="charge.id">
+                      <div class="flex items-center justify-between rounded-lg border border-slate-200 p-3">
+                        <div>
+                          <p class="font-black" x-text="unitName(charge)"></p>
+                          <p class="text-sm text-slate-500" x-text="monthLabel(charge.charge_month) + ' - ' + charge.receipt_number"></p>
+                        </div>
+                        <div class="text-right">
+                          <p class="font-black" x-text="money(charge.amount_owed)"></p>
+                          <button class="mt-1 text-xs font-black text-teal-700" type="button" @click="downloadReceipt(charge)">Receipt</button>
+                        </div>
+                      </div>
+                    </template>
+                    <p x-show="recentPayments.length === 0" class="py-8 text-center text-sm text-slate-500">No payments recorded</p>
+                  </div>
+                </section>
+              </div>
+            </section>
+          </template>
+
+          <template x-if="role === 'admin' && view === 'units'">
+            <section class="space-y-4">
+              <form class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm" @submit.prevent="saveUnit">
+                <h2 class="text-lg font-black tracking-normal" x-text="unitForm.id ? 'Edit unit' : 'Add unit'"></h2>
+                <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <label class="block">
+                    <span class="mb-1 block text-sm font-bold text-slate-700">Unit number</span>
+                    <input class="field" x-model.trim="unitForm.unit_number" required>
+                  </label>
+                  <label class="block">
+                    <span class="mb-1 block text-sm font-bold text-slate-700">Resident name</span>
+                    <input class="field" x-model.trim="unitForm.resident_name">
+                  </label>
+                  <label class="block">
+                    <span class="mb-1 block text-sm font-bold text-slate-700">Resident phone</span>
+                    <input class="field" type="tel" x-model.trim="unitForm.resident_phone">
+                  </label>
+                  <label class="block">
+                    <span class="mb-1 block text-sm font-bold text-slate-700">Resident email</span>
+                    <input class="field" type="email" x-model.trim="unitForm.resident_email">
+                  </label>
+                  <label class="block">
+                    <span class="mb-1 block text-sm font-bold text-slate-700">Landlord name</span>
+                    <input class="field" x-model.trim="unitForm.landlord_name">
+                  </label>
+                  <label class="block">
+                    <span class="mb-1 block text-sm font-bold text-slate-700">Landlord phone</span>
+                    <input class="field" type="tel" x-model.trim="unitForm.landlord_phone">
+                  </label>
+                  <label class="block">
+                    <span class="mb-1 block text-sm font-bold text-slate-700">Landlord email</span>
+                    <input class="field" type="email" x-model.trim="unitForm.landlord_email">
+                  </label>
+                  <label class="block">
+                    <span class="mb-1 block text-sm font-bold text-slate-700">Username</span>
+                    <input class="field" x-model.trim="unitForm.username" required>
+                  </label>
+                  <label class="block" x-show="!unitForm.id">
+                    <span class="mb-1 block text-sm font-bold text-slate-700">Initial password</span>
+                    <input class="field" type="password" autocomplete="new-password" x-model="unitForm.password" :required="!unitForm.id && !supabaseReady">
+                  </label>
+                  <label class="flex items-center gap-3 text-sm font-bold text-slate-700 sm:col-span-2 xl:col-span-1">
+                    <input type="checkbox" class="h-5 w-5 rounded border-slate-300 text-teal-700" x-model="unitForm.is_active">
+                    Active
+                  </label>
+                  <div class="flex gap-2 sm:col-span-2 xl:col-span-3 xl:justify-end">
+                    <button class="btn btn-primary flex-1" type="submit">
+                      <i data-lucide="save" class="h-4 w-4"></i>
+                      <span>Save</span>
+                    </button>
+                    <button class="btn btn-ghost" type="button" @click="resetUnitForm">Clear</button>
+                  </div>
+                </div>
+              </form>
+
+              <section class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <div class="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <h2 class="text-lg font-black tracking-normal">Units</h2>
+                  <input class="field md:max-w-xs" placeholder="Filter units" x-model.trim="unitFilter">
+                </div>
+                <div class="hidden overflow-auto scrollbar-thin md:block">
+                  <table class="w-full min-w-[1360px] text-left text-sm">
+                    <thead class="border-b border-slate-200 text-xs uppercase text-slate-500">
+                      <tr><th class="py-3">Unit</th><th>Resident</th><th>Resident phone</th><th>Resident email</th><th>Landlord</th><th>Landlord phone</th><th>Landlord email</th><th>Username</th><th>Status</th><th class="text-right">Actions</th></tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                      <template x-for="unit in filteredUnits" :key="unit.id">
+                        <tr>
+                          <td class="py-3 font-black" x-text="unit.unit_number"></td>
+                          <td x-text="unit.resident_name || '-'"></td>
+                          <td x-text="unit.resident_phone || '-'"></td>
+                          <td x-text="unit.resident_email || '-'"></td>
+                          <td x-text="unit.landlord_name || '-'"></td>
+                          <td x-text="unit.landlord_phone || '-'"></td>
+                          <td x-text="unit.landlord_email || '-'"></td>
+                          <td x-text="unit.username"></td>
+                          <td>
+                            <span class="rounded-full px-2.5 py-1 text-xs font-black" :class="unit.is_active ? 'bg-teal-50 text-teal-800' : 'bg-slate-100 text-slate-600'" x-text="unit.is_active ? 'Active' : 'Inactive'"></span>
+                          </td>
+                          <td class="text-right">
+                            <button class="btn btn-ghost mr-1" type="button" @click="editUnit(unit)"><i data-lucide="pencil" class="h-4 w-4"></i></button>
+                            <button class="btn btn-ghost" type="button" @click="toggleUnit(unit)"><i :data-lucide="unit.is_active ? 'pause' : 'play'" class="h-4 w-4"></i></button>
+                          </td>
+                        </tr>
+                      </template>
+                    </tbody>
+                  </table>
+                </div>
+                <div class="grid gap-3 md:hidden">
+                  <template x-for="unit in filteredUnits" :key="unit.id">
+                    <article class="rounded-lg border border-slate-200 p-4">
+                      <div class="mb-3 flex items-start justify-between gap-3">
+                        <div>
+                          <p class="text-xs font-black uppercase tracking-[.14em] text-slate-500">Unit</p>
+                          <h3 class="text-lg font-black" x-text="unit.unit_number"></h3>
+                        </div>
+                        <span class="rounded-full px-2.5 py-1 text-xs font-black" :class="unit.is_active ? 'bg-teal-50 text-teal-800' : 'bg-slate-100 text-slate-600'" x-text="unit.is_active ? 'Active' : 'Inactive'"></span>
+                      </div>
+                      <div class="grid gap-2 text-sm">
+                        <p><span class="font-bold text-slate-500">Resident:</span> <span x-text="unit.resident_name || '-'"></span></p>
+                        <p><span class="font-bold text-slate-500">Resident phone:</span> <span x-text="unit.resident_phone || '-'"></span></p>
+                        <p><span class="font-bold text-slate-500">Resident email:</span> <span x-text="unit.resident_email || '-'"></span></p>
+                        <p><span class="font-bold text-slate-500">Landlord:</span> <span x-text="unit.landlord_name || '-'"></span></p>
+                        <p><span class="font-bold text-slate-500">Landlord phone:</span> <span x-text="unit.landlord_phone || '-'"></span></p>
+                        <p><span class="font-bold text-slate-500">Landlord email:</span> <span x-text="unit.landlord_email || '-'"></span></p>
+                        <p><span class="font-bold text-slate-500">Username:</span> <span x-text="unit.username"></span></p>
+                      </div>
+                      <div class="mt-4 grid grid-cols-2 gap-2">
+                        <button class="btn btn-ghost" type="button" @click="editUnit(unit)"><i data-lucide="pencil" class="h-4 w-4"></i><span>Edit</span></button>
+                        <button class="btn btn-ghost" type="button" @click="toggleUnit(unit)"><i :data-lucide="unit.is_active ? 'pause' : 'play'" class="h-4 w-4"></i><span x-text="unit.is_active ? 'Pause' : 'Activate'"></span></button>
+                      </div>
+                    </article>
+                  </template>
+                </div>
+              </section>
+            </section>
+          </template>
+
+          <template x-if="role === 'admin' && view === 'payments'">
+            <section class="space-y-6">
+              <div class="grid gap-4 md:grid-cols-[1fr_auto_auto] md:items-end">
+                <label class="block">
+                  <span class="mb-1 block text-sm font-bold text-slate-700">Charge month</span>
+                  <input class="field" type="month" x-model="chargeMonth">
+                </label>
+                <button class="btn btn-dark" type="button" @click="generateCharges">
+                  <i data-lucide="calendar-plus" class="h-4 w-4"></i>
+                  <span>Generate charges</span>
+                </button>
+                <button class="btn btn-ghost" type="button" @click="loadAll">
+                  <i data-lucide="refresh-cw" class="h-4 w-4"></i>
+                  <span>Refresh</span>
+                </button>
+              </div>
+
+              <section class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <div class="mb-4 grid gap-3 md:grid-cols-[1fr_180px]">
+                  <input class="field" placeholder="Filter charges" x-model.trim="chargeFilter">
+                  <select class="field" x-model="chargeStatusFilter">
+                    <option value="all">All statuses</option>
+                    <option value="unpaid">Unpaid</option>
+                    <option value="paid">Paid</option>
+                  </select>
+                </div>
+                <div class="hidden overflow-auto scrollbar-thin md:block">
+                  <table class="w-full min-w-[900px] text-left text-sm">
+                    <thead class="border-b border-slate-200 text-xs uppercase text-slate-500">
+                      <tr><th class="py-3">Unit</th><th>Resident</th><th>Month</th><th>Amount</th><th>Status</th><th>Receipt</th><th class="text-right">Actions</th></tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                      <template x-for="charge in filteredCharges" :key="charge.id">
+                        <tr>
+                          <td class="py-3 font-black" x-text="unitNumber(charge)"></td>
+                          <td x-text="residentName(charge)"></td>
+                          <td x-text="monthLabel(charge.charge_month)"></td>
+                          <td class="font-black" x-text="money(charge.amount_owed)"></td>
+                          <td><span class="rounded-full px-2.5 py-1 text-xs font-black" :class="charge.status === 'paid' ? 'status-paid' : 'status-unpaid'" x-text="charge.status"></span></td>
+                          <td x-text="charge.receipt_number || '-'"></td>
+                          <td class="text-right">
+                            <button x-show="charge.status === 'unpaid'" class="btn btn-primary mr-1" type="button" @click="openPaymentDialog(charge)">
+                              <i data-lucide="check" class="h-4 w-4"></i>
+                              <span>Paid</span>
+                            </button>
+                            <button x-show="charge.status === 'paid'" class="btn btn-ghost" type="button" @click="downloadReceipt(charge)">
+                              <i data-lucide="receipt" class="h-4 w-4"></i>
+                            </button>
+                          </td>
+                        </tr>
+                      </template>
+                    </tbody>
+                  </table>
+                </div>
+                <div class="grid gap-3 md:hidden">
+                  <template x-for="charge in filteredCharges" :key="charge.id">
+                    <article class="rounded-lg border border-slate-200 p-4">
+                      <div class="mb-3 flex items-start justify-between gap-3">
+                        <div>
+                          <p class="text-xs font-black uppercase tracking-[.14em] text-slate-500" x-text="monthLabel(charge.charge_month)"></p>
+                          <h3 class="text-lg font-black" x-text="'Unit ' + unitNumber(charge)"></h3>
+                          <p class="text-sm text-slate-500" x-text="residentName(charge)"></p>
+                        </div>
+                        <span class="rounded-full px-2.5 py-1 text-xs font-black" :class="charge.status === 'paid' ? 'status-paid' : 'status-unpaid'" x-text="charge.status"></span>
+                      </div>
+                      <div class="grid gap-2 text-sm">
+                        <p><span class="font-bold text-slate-500">Amount:</span> <span class="font-black" x-text="money(charge.amount_owed)"></span></p>
+                        <p><span class="font-bold text-slate-500">Receipt:</span> <span x-text="charge.receipt_number || '-'"></span></p>
+                      </div>
+                      <div class="mt-4">
+                        <button x-show="charge.status === 'unpaid'" class="btn btn-primary w-full" type="button" @click="openPaymentDialog(charge)">
+                          <i data-lucide="check" class="h-4 w-4"></i>
+                          <span>Paid</span>
+                        </button>
+                        <button x-show="charge.status === 'paid'" class="btn btn-ghost w-full" type="button" @click="downloadReceipt(charge)">
+                          <i data-lucide="receipt" class="h-4 w-4"></i>
+                          <span>Receipt</span>
+                        </button>
+                      </div>
+                    </article>
+                  </template>
+                </div>
+              </section>
+            </section>
+          </template>
+
+          <template x-if="role === 'admin' && view === 'rates'">
+            <section class="grid gap-6 lg:grid-cols-[360px_1fr]">
+              <form class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm" @submit.prevent="setRate">
+                <h2 class="text-lg font-black tracking-normal">Levy rate</h2>
+                <div class="mt-4 space-y-4">
+                  <label class="block">
+                    <span class="mb-1 block text-sm font-bold text-slate-700">Amount</span>
+                    <input class="field" type="number" min="0" step="0.01" x-model.number="rateForm.amount" required>
+                  </label>
+                  <label class="block">
+                    <span class="mb-1 block text-sm font-bold text-slate-700">Effective month</span>
+                    <input class="field" type="month" x-model="rateForm.effective_month" required>
+                  </label>
+                  <button class="btn btn-primary w-full" type="submit">
+                    <i data-lucide="badge-dollar-sign" class="h-4 w-4"></i>
+                    <span>Set rate</span>
+                  </button>
+                </div>
+              </form>
+
+              <section class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <div class="mb-4 flex items-center justify-between">
+                  <h2 class="text-lg font-black tracking-normal">Rate history</h2>
+                  <p class="text-sm font-black text-teal-700" x-text="currentRate ? money(currentRate.amount) : 'No rate'"></p>
+                </div>
+                <div class="hidden overflow-auto scrollbar-thin sm:block">
+                  <table class="w-full min-w-[520px] text-left text-sm">
+                    <thead class="border-b border-slate-200 text-xs uppercase text-slate-500">
+                      <tr><th class="py-3">Effective from</th><th>Amount</th><th>Created</th></tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                      <template x-for="rate in rates" :key="rate.id">
+                        <tr>
+                          <td class="py-3 font-black" x-text="monthLabel(rate.effective_from)"></td>
+                          <td x-text="money(rate.amount)"></td>
+                          <td x-text="dateLabel(rate.created_at)"></td>
+                        </tr>
+                      </template>
+                    </tbody>
+                  </table>
+                </div>
+                <div class="grid gap-3 sm:hidden">
+                  <template x-for="rate in rates" :key="rate.id">
+                    <article class="rounded-lg border border-slate-200 p-4">
+                      <div class="flex items-start justify-between gap-3">
+                        <div>
+                          <p class="text-xs font-black uppercase tracking-[.14em] text-slate-500">Effective from</p>
+                          <h3 class="text-base font-black" x-text="monthLabel(rate.effective_from)"></h3>
+                          <p class="mt-1 text-sm text-slate-500" x-text="dateLabel(rate.created_at)"></p>
+                        </div>
+                        <p class="font-black text-teal-700" x-text="money(rate.amount)"></p>
+                      </div>
+                    </article>
+                  </template>
+                </div>
+              </section>
+            </section>
+          </template>
+
+          <template x-if="role === 'resident'">
+            <section class="space-y-6">
+              <div class="grid gap-4 md:grid-cols-3">
+                <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                  <p class="text-sm font-bold text-slate-500">Unit</p>
+                  <p class="mt-3 text-2xl font-black" x-text="residentUnit?.unit_number || '-'"></p>
+                </div>
+                <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                  <p class="text-sm font-bold text-slate-500">Outstanding</p>
+                  <p class="mt-3 text-2xl font-black" x-text="money(summary.outstanding)"></p>
+                </div>
+                <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                  <p class="text-sm font-bold text-slate-500">Paid months</p>
+                  <p class="mt-3 text-2xl font-black" x-text="charges.filter(c => c.status === 'paid').length"></p>
+                </div>
+              </div>
+
+              <section class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <h2 class="mb-4 text-lg font-black tracking-normal">Payment history</h2>
+                <div class="hidden overflow-auto scrollbar-thin md:block">
+                  <table class="w-full min-w-[720px] text-left text-sm">
+                    <thead class="border-b border-slate-200 text-xs uppercase text-slate-500">
+                      <tr><th class="py-3">Month</th><th>Amount</th><th>Status</th><th>Paid date</th><th>Receipt</th><th class="text-right">Download</th></tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-100">
+                      <template x-for="charge in charges" :key="charge.id">
+                        <tr>
+                          <td class="py-3 font-black" x-text="monthLabel(charge.charge_month)"></td>
+                          <td x-text="money(charge.amount_owed)"></td>
+                          <td><span class="rounded-full px-2.5 py-1 text-xs font-black" :class="charge.status === 'paid' ? 'status-paid' : 'status-unpaid'" x-text="charge.status"></span></td>
+                          <td x-text="charge.paid_date ? dateLabel(charge.paid_date) : '-'"></td>
+                          <td x-text="charge.receipt_number || '-'"></td>
+                          <td class="text-right">
+                            <button x-show="charge.status === 'paid'" class="btn btn-ghost" type="button" @click="downloadReceipt(charge)">
+                              <i data-lucide="download" class="h-4 w-4"></i>
+                            </button>
+                          </td>
+                        </tr>
+                      </template>
+                    </tbody>
+                  </table>
+                </div>
+                <div class="grid gap-3 md:hidden">
+                  <template x-for="charge in charges" :key="charge.id">
+                    <article class="rounded-lg border border-slate-200 p-4">
+                      <div class="mb-3 flex items-start justify-between gap-3">
+                        <div>
+                          <p class="text-xs font-black uppercase tracking-[.14em] text-slate-500">Levy month</p>
+                          <h3 class="text-lg font-black" x-text="monthLabel(charge.charge_month)"></h3>
+                        </div>
+                        <span class="rounded-full px-2.5 py-1 text-xs font-black" :class="charge.status === 'paid' ? 'status-paid' : 'status-unpaid'" x-text="charge.status"></span>
+                      </div>
+                      <div class="grid gap-2 text-sm">
+                        <p><span class="font-bold text-slate-500">Amount:</span> <span class="font-black" x-text="money(charge.amount_owed)"></span></p>
+                        <p><span class="font-bold text-slate-500">Paid date:</span> <span x-text="charge.paid_date ? dateLabel(charge.paid_date) : '-'"></span></p>
+                        <p><span class="font-bold text-slate-500">Receipt:</span> <span x-text="charge.receipt_number || '-'"></span></p>
+                      </div>
+                      <button x-show="charge.status === 'paid'" class="btn btn-ghost mt-4 w-full" type="button" @click="downloadReceipt(charge)">
+                        <i data-lucide="download" class="h-4 w-4"></i>
+                        <span>Download receipt</span>
+                      </button>
+                    </article>
+                  </template>
+                </div>
+              </section>
+            </section>
+          </template>
+
+          <div class="mt-4 min-h-6 text-sm font-bold" :class="message.type === 'error' ? 'text-red-700' : 'text-teal-700'" x-text="message.text"></div>
+        </main>
+
+        <div x-show="paymentDialogOpen" x-transition.opacity class="fixed inset-0 z-50 grid place-items-center bg-slate-950/55 px-4 py-6" @keydown.escape.window="closePaymentDialog">
+          <form class="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-lg border border-slate-200 bg-white p-5 shadow-2xl scrollbar-thin" @submit.prevent="recordPayment">
+            <div class="mb-5 flex items-start justify-between gap-4">
+              <div>
+                <p class="text-xs font-black uppercase tracking-[.18em] text-teal-700">Record payment</p>
+                <h2 class="mt-1 text-xl font-black tracking-normal" x-text="paymentCharge ? 'Unit ' + unitNumber(paymentCharge) : 'Payment'"></h2>
+              </div>
+              <button class="btn btn-ghost" type="button" @click="closePaymentDialog" aria-label="Close payment dialog">
+                <i data-lucide="x" class="h-4 w-4"></i>
+              </button>
+            </div>
+
+            <div class="mb-5 grid gap-3 rounded-lg bg-slate-50 p-4 text-sm sm:grid-cols-2">
+              <div>
+                <p class="font-bold text-slate-500">Resident</p>
+                <p class="font-black" x-text="paymentCharge ? residentName(paymentCharge) : '-'"></p>
+              </div>
+              <div>
+                <p class="font-bold text-slate-500">Levy month</p>
+                <p class="font-black" x-text="paymentCharge ? monthLabel(paymentCharge.charge_month) : '-'"></p>
+              </div>
+              <div>
+                <p class="font-bold text-slate-500">Amount</p>
+                <p class="font-black" x-text="paymentCharge ? money(paymentCharge.amount_owed) : '-'"></p>
+              </div>
+              <div>
+                <p class="font-bold text-slate-500">Status</p>
+                <p class="font-black">Unpaid</p>
+              </div>
+            </div>
+
+            <div class="space-y-4">
+              <label class="block">
+                <span class="mb-1 block text-sm font-bold text-slate-700">Date paid</span>
+                <input class="field" type="date" x-model="paymentForm.paid_date" required>
+              </label>
+              <label class="block">
+                <span class="mb-1 block text-sm font-bold text-slate-700">Payment method</span>
+                <select class="field" x-model="paymentForm.method">
+                  <option>Cash</option>
+                  <option>EcoCash</option>
+                  <option>Bank deposit</option>
+                  <option>Other</option>
+                </select>
+              </label>
+              <label class="block">
+                <span class="mb-1 block text-sm font-bold text-slate-700">Reference</span>
+                <input class="field" x-model.trim="paymentForm.reference" placeholder="Transaction ID, deposit slip, or note">
+              </label>
+              <label class="block">
+                <span class="mb-1 block text-sm font-bold text-slate-700">Notes</span>
+                <textarea class="field min-h-24 resize-y" x-model.trim="paymentForm.notes" placeholder="Optional payment notes"></textarea>
+              </label>
+            </div>
+
+            <div class="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+              <button class="btn btn-ghost" type="button" @click="closePaymentDialog">Cancel</button>
+              <button class="btn btn-primary" type="submit" :disabled="busy">
+                <i data-lucide="receipt" class="h-4 w-4"></i>
+                <span x-text="busy ? 'Recording...' : 'Record payment'"></span>
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </template>
+  </div>
+
+  <script>
+    const APP_CONFIG = {
+      societyName: "Bellview Gardens",
+      currency: "USD",
+      supabaseUrl: "https://wwwvmejsyfzehtzhjetn.supabase.co",
+      supabaseAnonKey: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind3d3ZtZWpzeWZ6ZWh0emhqZXRuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODQwNzc4OTAsImV4cCI6MjA5OTY1Mzg5MH0.Wr5nHEmUPIGrjAmc3JhuwyE-EzG5zaNt8uB4idDFVoc",
+      createUnitFunctionName: ""
+    };
+
+    function levyApp() {
+      return {
+        config: APP_CONFIG,
+        supabase: null,
+        supabaseReady: false,
+        session: null,
+        role: null,
+        roleLabel: "",
+        view: "dashboard",
+        busy: false,
+        message: { type: "info", text: "" },
+        loginForm: { username: "", password: "" },
+        units: [],
+        rates: [],
+        charges: [],
+        residentUnit: null,
+        unitFilter: "",
+        chargeFilter: "",
+        chargeStatusFilter: "all",
+        chargeMonth: "",
+        paymentDialogOpen: false,
+        paymentCharge: null,
+        paymentForm: { paid_date: "", method: "Cash", reference: "", notes: "" },
+        unitForm: {
+          id: null,
+          unit_number: "",
+          resident_name: "",
+          resident_phone: "",
+          resident_email: "",
+          landlord_name: "",
+          landlord_phone: "",
+          landlord_email: "",
+          username: "",
+          password: "",
+          is_active: true
+        },
+        rateForm: { amount: null, effective_month: "" },
+        adminTabs: [
+          { id: "dashboard", label: "Dashboard" },
+          { id: "units", label: "Units" },
+          { id: "payments", label: "Payments" },
+          { id: "rates", label: "Rates" }
+        ],
+
+        init() {
+          const now = new Date();
+          const month = now.toISOString().slice(0, 7);
+          const today = now.toISOString().slice(0, 10);
+          this.chargeMonth = month;
+          this.paymentForm.paid_date = today;
+          this.rateForm.effective_month = month;
+          this.supabaseReady = APP_CONFIG.supabaseUrl.startsWith("http") && APP_CONFIG.supabaseAnonKey.length > 40;
+          if (this.supabaseReady) {
+            this.supabase = window.supabase.createClient(APP_CONFIG.supabaseUrl, APP_CONFIG.supabaseAnonKey);
+            this.restoreSession();
+          } else {
+            this.seedDemo();
+          }
+          this.refreshIcons();
+        },
+
+        async restoreSession() {
+          const { data } = await this.supabase.auth.getSession();
+          if (data.session) {
+            await this.applySession(data.session, "");
+          }
+        },
+
+        refreshIcons() {
+          this.$nextTick(() => {
+            if (window.lucide) window.lucide.createIcons();
+          });
+        },
+
+        seedDemo() {
+          this.units = [
+            { id: "u1", unit_number: "1", resident_name: "Tariro Moyo", resident_phone: "+263 77 111 0001", resident_email: "tariro@example.com", landlord_name: "Mavis Moyo", landlord_phone: "+263 77 900 0001", landlord_email: "mavis@example.com", username: "unit1", is_active: true },
+            { id: "u2", unit_number: "7", resident_name: "Nyasha Dube", resident_phone: "+263 77 111 0007", resident_email: "nyasha@example.com", landlord_name: "David Dube", landlord_phone: "+263 77 900 0007", landlord_email: "david@example.com", username: "unit7", is_active: true },
+            { id: "u3", unit_number: "12", resident_name: "Amina Patel", resident_phone: "+263 77 111 0012", resident_email: "amina@example.com", landlord_name: "Farai Patel", landlord_phone: "+263 77 900 0012", landlord_email: "farai@example.com", username: "unit12", is_active: true },
+            { id: "u4", unit_number: "18", resident_name: "Kuda Ncube", resident_phone: "+263 77 111 0018", resident_email: "kuda@example.com", landlord_name: "Lindiwe Ncube", landlord_phone: "+263 77 900 0018", landlord_email: "lindiwe@example.com", username: "unit18", is_active: false }
+          ];
+          this.rates = [
+            { id: "r2", amount: 85, effective_from: this.monthStart(this.chargeMonth), created_at: new Date().toISOString() },
+            { id: "r1", amount: 75, effective_from: "2026-01-01", created_at: "2026-01-01T08:00:00Z" }
+          ];
+          this.charges = [
+            this.demoCharge("c1", "u1", "2026-07-01", 85, "paid", "2026-07-04"),
+            this.demoCharge("c2", "u2", "2026-07-01", 85, "unpaid", null),
+            this.demoCharge("c3", "u3", "2026-07-01", 85, "paid", "2026-07-06"),
+            this.demoCharge("c4", "u2", "2026-06-01", 75, "unpaid", null),
+            this.demoCharge("c5", "u3", "2026-06-01", 75, "paid", "2026-06-02")
+          ];
+        },
+
+        demoCharge(id, unitId, month, amount, status, paidDate) {
+          const unit = this.units.find((item) => item.id === unitId);
+          return {
+            id,
+            unit_id: unitId,
+            unit,
+            units: unit,
+            charge_month: month,
+            amount_owed: amount,
+            status,
+            paid_date: paidDate,
+            payment_method: status === "paid" ? "Cash" : "",
+            payment_reference: status === "paid" ? "Demo receipt" : "",
+            notes: "",
+            receipt_number: status === "paid" ? `RCT-${month.slice(0, 7).replace("-", "")}-${unit.unit_number}` : null
+          };
+        },
+
+        quickLogin(username) {
+          this.loginForm.username = username;
+          this.loginForm.password = "demo";
+          this.login();
+        },
+
+        async login() {
+          this.busy = true;
+          this.message = { type: "info", text: "" };
+          try {
+            if (!this.supabaseReady) {
+              this.session = { user: { id: this.loginForm.username || "demo" } };
+              if (this.loginForm.username.toLowerCase() === "admin") {
+                this.role = "admin";
+                this.roleLabel = "Admin";
+                this.view = "dashboard";
+              } else {
+                const unit = this.units.find((item) => item.username.toLowerCase() === this.loginForm.username.toLowerCase()) || this.units[2];
+                this.role = "resident";
+                this.roleLabel = "Resident";
+                this.residentUnit = unit;
+                this.charges = this.charges.filter((charge) => charge.unit_id === unit.id);
+              }
+              this.message = { type: "info", text: "Signed in" };
+              this.refreshIcons();
+              return;
+            }
+
+            const email = this.usernameToEmail(this.loginForm.username);
+            const { data, error } = await this.supabase.auth.signInWithPassword({ email, password: this.loginForm.password });
+            if (error) throw error;
+            await this.applySession(data.session, "Signed in");
+          } catch (error) {
+            this.message = { type: "error", text: error.message || "Sign in failed" };
+          } finally {
+            this.busy = false;
+            this.refreshIcons();
+          }
+        },
+
+        async applySession(session, text) {
+          this.session = session;
+          const userId = session.user.id;
+          const { data: admin } = await this.supabase.from("admins").select("*").eq("auth_user_id", userId).maybeSingle();
+          if (admin) {
+            this.role = "admin";
+            this.roleLabel = "Admin";
+            this.view = "dashboard";
+            await this.loadAll();
+          } else {
+            this.role = "resident";
+            this.roleLabel = "Resident";
+            await this.loadResident();
+          }
+          this.message = { type: "info", text };
+          this.refreshIcons();
+        },
+
+        async logout() {
+          if (this.supabaseReady) await this.supabase.auth.signOut();
+          this.session = null;
+          this.role = null;
+          this.roleLabel = "";
+          this.loginForm.password = "";
+          if (!this.supabaseReady) this.seedDemo();
+          this.refreshIcons();
+        },
+
+        async loadAll() {
+          if (!this.supabaseReady) {
+            this.refreshIcons();
+            return;
+          }
+          this.busy = true;
+          try {
+            const [unitsRes, ratesRes, chargesRes] = await Promise.all([
+              this.supabase.from("units").select("*").order("unit_number", { ascending: true }),
+              this.supabase.from("levy_rates").select("*").order("effective_from", { ascending: false }),
+              this.supabase.from("levy_charges").select("*, units(unit_number,resident_name)").order("charge_month", { ascending: false })
+            ]);
+            if (unitsRes.error) throw unitsRes.error;
+            if (ratesRes.error) throw ratesRes.error;
+            if (chargesRes.error) throw chargesRes.error;
+            this.units = unitsRes.data || [];
+            this.rates = ratesRes.data || [];
+            this.charges = chargesRes.data || [];
+          } catch (error) {
+            this.message = { type: "error", text: error.message || "Could not load data" };
+          } finally {
+            this.busy = false;
+            this.refreshIcons();
+          }
+        },
+
+        async loadResident() {
+          if (!this.supabaseReady) return;
+          this.busy = true;
+          try {
+            const userId = this.session.user.id;
+            const unitRes = await this.supabase.from("units").select("*").eq("auth_user_id", userId).maybeSingle();
+            if (unitRes.error) throw unitRes.error;
+            this.residentUnit = unitRes.data;
+            const chargesRes = await this.supabase.from("levy_charges").select("*, units(unit_number,resident_name)").order("charge_month", { ascending: false });
+            if (chargesRes.error) throw chargesRes.error;
+            this.charges = chargesRes.data || [];
+          } catch (error) {
+            this.message = { type: "error", text: error.message || "Could not load account" };
+          } finally {
+            this.busy = false;
+            this.refreshIcons();
+          }
+        },
+
+        async saveUnit() {
+          try {
+            if (!this.supabaseReady) {
+              const { password, ...unit } = this.unitForm;
+              if (this.unitForm.id) {
+                const index = this.units.findIndex((item) => item.id === this.unitForm.id);
+                this.units[index] = { ...this.units[index], ...unit };
+              } else {
+                this.units.push({ ...unit, id: crypto.randomUUID() });
+              }
+              this.resetUnitForm();
+              this.message = { type: "info", text: "Unit saved" };
+              return;
+            }
+            const payload = {
+              unit_number: this.unitForm.unit_number,
+              resident_name: this.unitForm.resident_name,
+              resident_phone: this.unitForm.resident_phone,
+              resident_email: this.unitForm.resident_email,
+              landlord_name: this.unitForm.landlord_name,
+              landlord_phone: this.unitForm.landlord_phone,
+              landlord_email: this.unitForm.landlord_email,
+              username: this.unitForm.username,
+              is_active: this.unitForm.is_active
+            };
+            if (this.unitForm.id) {
+              const { error } = await this.supabase.from("units").update(payload).eq("id", this.unitForm.id);
+              if (error) throw error;
+            } else {
+              if (!APP_CONFIG.createUnitFunctionName) {
+                throw new Error("New resident logins need a Supabase Edge Function or a manually created Auth user.");
+              }
+              const { error } = await this.supabase.functions.invoke(APP_CONFIG.createUnitFunctionName, {
+                body: { ...payload, password: this.unitForm.password }
+              });
+              if (error) throw error;
+            }
+            await this.loadAll();
+            this.resetUnitForm();
+            this.message = { type: "info", text: "Unit saved" };
+          } catch (error) {
+            this.message = { type: "error", text: error.message || "Could not save unit" };
+          } finally {
+            this.refreshIcons();
+          }
+        },
+
+        editUnit(unit) {
+          this.unitForm = {
+            id: unit.id,
+            unit_number: unit.unit_number || "",
+            resident_name: unit.resident_name || "",
+            resident_phone: unit.resident_phone || "",
+            resident_email: unit.resident_email || "",
+            landlord_name: unit.landlord_name || "",
+            landlord_phone: unit.landlord_phone || "",
+            landlord_email: unit.landlord_email || "",
+            username: unit.username || "",
+            password: "",
+            is_active: unit.is_active
+          };
+          this.refreshIcons();
+        },
+
+        resetUnitForm() {
+          this.unitForm = {
+            id: null,
+            unit_number: "",
+            resident_name: "",
+            resident_phone: "",
+            resident_email: "",
+            landlord_name: "",
+            landlord_phone: "",
+            landlord_email: "",
+            username: "",
+            password: "",
+            is_active: true
+          };
+        },
+
+        async toggleUnit(unit) {
+          this.editUnit({ ...unit, is_active: !unit.is_active });
+          await this.saveUnit();
+        },
+
+        async setRate() {
+          try {
+            const payload = {
+              amount: Number(this.rateForm.amount),
+              effective_from: this.monthStart(this.rateForm.effective_month)
+            };
+            if (!this.supabaseReady) {
+              this.rates.unshift({ id: crypto.randomUUID(), ...payload, created_at: new Date().toISOString() });
+              this.rates.sort((a, b) => b.effective_from.localeCompare(a.effective_from));
+              this.message = { type: "info", text: "Rate saved" };
+              return;
+            }
+            const { error } = await this.supabase.from("levy_rates").insert(payload);
+            if (error) throw error;
+            await this.loadAll();
+            this.message = { type: "info", text: "Rate saved" };
+          } catch (error) {
+            this.message = { type: "error", text: error.message || "Could not save rate" };
+          }
+        },
+
+        async generateCharges() {
+          try {
+            const targetMonth = this.monthStart(this.chargeMonth);
+            if (!this.supabaseReady) {
+              const rate = this.rateForMonth(targetMonth);
+              if (!rate) throw new Error("No levy rate set for this month");
+              this.units.filter((unit) => unit.is_active).forEach((unit) => {
+                const exists = this.charges.some((charge) => charge.unit_id === unit.id && charge.charge_month === targetMonth);
+                if (!exists) {
+                  this.charges.push({
+                    id: crypto.randomUUID(),
+                    unit_id: unit.id,
+                    unit,
+                    units: unit,
+                    charge_month: targetMonth,
+                    amount_owed: rate.amount,
+                    status: "unpaid",
+                    paid_date: null,
+                    receipt_number: null
+                  });
+                }
+              });
+              this.message = { type: "info", text: "Charges generated" };
+              return;
+            }
+            const { error } = await this.supabase.rpc("generate_monthly_charges", { target_month: targetMonth });
+            if (error) throw error;
+            await this.loadAll();
+            this.message = { type: "info", text: "Charges generated" };
+          } catch (error) {
+            this.message = { type: "error", text: error.message || "Could not generate charges" };
+          } finally {
+            this.refreshIcons();
+          }
+        },
+
+        openPaymentDialog(charge) {
+          this.paymentCharge = charge;
+          this.paymentForm = {
+            paid_date: new Date().toISOString().slice(0, 10),
+            method: "Cash",
+            reference: "",
+            notes: ""
+          };
+          this.paymentDialogOpen = true;
+          this.refreshIcons();
+        },
+
+        closePaymentDialog() {
+          this.paymentDialogOpen = false;
+          this.paymentCharge = null;
+          this.paymentForm = { paid_date: "", method: "Cash", reference: "", notes: "" };
+          this.refreshIcons();
+        },
+
+        paymentNotes() {
+          return [
+            this.paymentForm.method ? `Method: ${this.paymentForm.method}` : "",
+            this.paymentForm.reference ? `Reference: ${this.paymentForm.reference}` : "",
+            this.paymentForm.notes ? `Notes: ${this.paymentForm.notes}` : ""
+          ].filter(Boolean).join("\n");
+        },
+
+        async recordPayment() {
+          try {
+            if (!this.paymentCharge) throw new Error("Select a charge");
+            if (!this.paymentForm.paid_date) throw new Error("Select a paid date");
+            if (!this.supabaseReady) {
+              const charge = this.paymentCharge;
+              charge.status = "paid";
+              charge.paid_date = this.paymentForm.paid_date;
+              charge.payment_method = this.paymentForm.method;
+              charge.payment_reference = this.paymentForm.reference;
+              charge.notes = this.paymentNotes();
+              charge.receipt_number = `RCT-${charge.charge_month.slice(0, 7).replace("-", "")}-${this.unitNumber(charge)}`;
+              this.message = { type: "info", text: `Payment recorded: ${charge.receipt_number}` };
+              this.closePaymentDialog();
+              return;
+            }
+            this.busy = true;
+            const { data, error } = await this.supabase.rpc("record_payment", {
+              p_charge_id: this.paymentCharge.id,
+              p_paid_date: this.paymentForm.paid_date,
+              p_payment_method: this.paymentForm.method,
+              p_payment_reference: this.paymentForm.reference,
+              p_notes: this.paymentForm.notes
+            });
+            if (error) throw error;
+            await this.loadAll();
+            this.message = { type: "info", text: `Payment recorded: ${data}` };
+            this.closePaymentDialog();
+          } catch (error) {
+            this.message = { type: "error", text: error.message || "Could not record payment" };
+          } finally {
+            this.busy = false;
+            this.refreshIcons();
+          }
+        },
+
+        downloadReceipt(charge) {
+          const jsPDF = window.jspdf.jsPDF;
+          const doc = new jsPDF({ unit: "pt", format: "a4" });
+          const unitNo = this.unitNumber(charge);
+          const resident = this.residentName(charge);
+          doc.setFillColor(17, 24, 39);
+          doc.rect(0, 0, 595, 120, "F");
+          doc.setTextColor(255, 255, 255);
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(24);
+          doc.text(APP_CONFIG.societyName, 48, 58);
+          doc.setFontSize(12);
+          doc.text("Levy payment receipt", 48, 84);
+          doc.setTextColor(15, 23, 42);
+          doc.setFontSize(11);
+          const rows = [
+            ["Receipt number", charge.receipt_number || "-"],
+            ["Unit number", unitNo],
+            ["Resident", resident],
+            ["Levy month", this.monthLabel(charge.charge_month)],
+            ["Amount paid", this.money(charge.amount_owed)],
+            ["Date paid", charge.paid_date ? this.dateLabel(charge.paid_date) : "-"],
+            ["Payment method", charge.payment_method || this.methodFromNotes(charge.notes) || "-"],
+            ["Reference", charge.payment_reference || this.referenceFromNotes(charge.notes) || "-"]
+          ];
+          let y = 170;
+          rows.forEach(([label, value]) => {
+            doc.setFont("helvetica", "bold");
+            doc.text(label, 48, y);
+            doc.setFont("helvetica", "normal");
+            doc.text(String(value), 210, y);
+            y += 32;
+          });
+          doc.setDrawColor(203, 213, 225);
+          doc.line(48, y + 10, 547, y + 10);
+          doc.setFontSize(10);
+          doc.setTextColor(100, 116, 139);
+          doc.text("Recorded by Bellview Gardens administration.", 48, y + 42);
+          doc.save(`${APP_CONFIG.societyName.replaceAll(" ", "-")}-${charge.receipt_number || "receipt"}.pdf`);
+        },
+
+        usernameToEmail(username) {
+          return `${String(username).trim().toLowerCase()}@resident.local`;
+        },
+
+        monthStart(month) {
+          return `${month}-01`;
+        },
+
+        rateForMonth(month) {
+          return [...this.rates].sort((a, b) => b.effective_from.localeCompare(a.effective_from)).find((rate) => rate.effective_from <= month);
+        },
+
+        money(amount) {
+          return new Intl.NumberFormat("en-US", { style: "currency", currency: APP_CONFIG.currency }).format(Number(amount || 0));
+        },
+
+        dateLabel(value) {
+          if (!value) return "-";
+          return new Intl.DateTimeFormat("en-GB", { year: "numeric", month: "short", day: "2-digit" }).format(new Date(value));
+        },
+
+        monthLabel(value) {
+          if (!value) return "-";
+          return new Intl.DateTimeFormat("en-GB", { year: "numeric", month: "long" }).format(new Date(value));
+        },
+
+        unitNumber(charge) {
+          return charge.units?.unit_number || charge.unit?.unit_number || this.units.find((unit) => unit.id === charge.unit_id)?.unit_number || "-";
+        },
+
+        residentName(charge) {
+          return charge.units?.resident_name || charge.unit?.resident_name || this.units.find((unit) => unit.id === charge.unit_id)?.resident_name || "-";
+        },
+
+        methodFromNotes(notes) {
+          const match = String(notes || "").match(/^Method:\s*(.+)$/m);
+          return match ? match[1] : "";
+        },
+
+        referenceFromNotes(notes) {
+          const match = String(notes || "").match(/^Reference:\s*(.+)$/m);
+          return match ? match[1] : "";
+        },
+
+        unitName(charge) {
+          return `Unit ${this.unitNumber(charge)}`;
+        },
+
+        get currentRate() {
+          return this.rates[0] || null;
+        },
+
+        get dashboardTiles() {
+          return [
+            { label: "Units", value: this.summary.totalUnits, icon: "building-2" },
+            { label: "Collected this month", value: this.money(this.summary.collectedThisMonth), icon: "wallet" },
+            { label: "Outstanding", value: this.money(this.summary.outstanding), icon: "circle-alert" },
+            { label: "Current rate", value: this.currentRate ? this.money(this.currentRate.amount) : "-", icon: "badge-dollar-sign" }
+          ];
+        },
+
+        get summary() {
+          const activeUnitIds = new Set(this.units.filter((unit) => unit.is_active).map((unit) => unit.id));
+          const currentMonth = this.monthStart(this.chargeMonth);
+          const visibleCharges = this.charges;
+          return {
+            totalUnits: this.role === "resident" && this.residentUnit ? 1 : activeUnitIds.size,
+            outstanding: visibleCharges.filter((charge) => charge.status === "unpaid").reduce((sum, charge) => sum + Number(charge.amount_owed || 0), 0),
+            collectedThisMonth: visibleCharges
+              .filter((charge) => charge.status === "paid" && charge.charge_month === currentMonth)
+              .reduce((sum, charge) => sum + Number(charge.amount_owed || 0), 0)
+          };
+        },
+
+        get arrears() {
+          const groups = new Map();
+          this.charges.filter((charge) => charge.status === "unpaid").forEach((charge) => {
+            const key = charge.unit_id;
+            if (!groups.has(key)) {
+              groups.set(key, {
+                unit_number: this.unitNumber(charge),
+                resident_name: this.residentName(charge),
+                months: 0,
+                amount: 0
+              });
+            }
+            const row = groups.get(key);
+            row.months += 1;
+            row.amount += Number(charge.amount_owed || 0);
+          });
+          return [...groups.values()].sort((a, b) => b.amount - a.amount);
+        },
+
+        get recentPayments() {
+          return this.charges
+            .filter((charge) => charge.status === "paid")
+            .sort((a, b) => String(b.paid_date || "").localeCompare(String(a.paid_date || "")))
+            .slice(0, 6);
+        },
+
+        get filteredUnits() {
+          const query = this.unitFilter.toLowerCase();
+          return this.units.filter((unit) =>
+            [unit.unit_number, unit.resident_name, unit.resident_phone, unit.resident_email, unit.landlord_name, unit.landlord_phone, unit.landlord_email, unit.username]
+              .some((value) => String(value || "").toLowerCase().includes(query))
+          );
+        },
+
+        get filteredCharges() {
+          const query = this.chargeFilter.toLowerCase();
+          return this.charges.filter((charge) => {
+            const matchesStatus = this.chargeStatusFilter === "all" || charge.status === this.chargeStatusFilter;
+            const matchesQuery = [this.unitNumber(charge), this.residentName(charge), charge.receipt_number, this.monthLabel(charge.charge_month)]
+              .some((value) => String(value || "").toLowerCase().includes(query));
+            return matchesStatus && matchesQuery;
+          }).sort((a, b) => String(b.charge_month).localeCompare(String(a.charge_month)));
+        }
+      };
+    }
+  </script>
+</body>
+</html>
