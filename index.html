@@ -358,6 +358,52 @@
               </div>
 
               <section class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <div class="mb-4 flex flex-wrap items-end justify-between gap-3">
+                  <div>
+                    <h2 class="text-lg font-black tracking-normal">Arrears history</h2>
+                    <p class="text-sm text-slate-500">Add old outstanding levy months for one unit without overwriting existing records.</p>
+                  </div>
+                  <button class="btn btn-ghost" type="button" @click="fillArrearsFromRate">
+                    <i data-lucide="badge-dollar-sign" class="h-4 w-4"></i>
+                    <span>Use current rate</span>
+                  </button>
+                </div>
+                <form class="grid gap-4 xl:grid-cols-[1.2fr_.8fr_.8fr_.8fr] xl:items-start" @submit.prevent="addArrearsHistory">
+                  <label class="block">
+                    <span class="mb-1 block text-sm font-bold text-slate-700">Unit</span>
+                    <select class="field" x-model="arrearsForm.unit_id" required>
+                      <option value="">Select unit</option>
+                      <template x-for="unit in units" :key="unit.id">
+                        <option :value="unit.id" x-text="'Unit ' + unit.unit_number + (unit.resident_name ? ' - ' + unit.resident_name : '')"></option>
+                      </template>
+                    </select>
+                  </label>
+                  <label class="block">
+                    <span class="mb-1 block text-sm font-bold text-slate-700">From month</span>
+                    <input class="field" type="month" x-model="arrearsForm.from_month" required>
+                  </label>
+                  <label class="block">
+                    <span class="mb-1 block text-sm font-bold text-slate-700">To month</span>
+                    <input class="field" type="month" x-model="arrearsForm.to_month" required>
+                  </label>
+                  <label class="block">
+                    <span class="mb-1 block text-sm font-bold text-slate-700">Monthly amount</span>
+                    <input class="field" type="number" min="0.01" step="0.01" x-model.number="arrearsForm.amount" required>
+                  </label>
+                  <label class="block xl:col-span-3">
+                    <span class="mb-1 block text-sm font-bold text-slate-700">Notes</span>
+                    <textarea class="field min-h-20 resize-y" x-model.trim="arrearsForm.notes" placeholder="Example: Opening arrears before system launch"></textarea>
+                  </label>
+                  <div class="flex h-full items-end">
+                    <button class="btn btn-primary w-full" type="submit">
+                      <i data-lucide="history" class="h-4 w-4"></i>
+                      <span>Add arrears history</span>
+                    </button>
+                  </div>
+                </form>
+              </section>
+
+              <section class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
                 <div class="mb-4 grid gap-3 md:grid-cols-[1fr_180px]">
                   <input class="field" placeholder="Filter charges" x-model.trim="chargeFilter">
                   <select class="field" x-model="chargeStatusFilter">
@@ -692,6 +738,7 @@
         chargeFilter: "",
         chargeStatusFilter: "all",
         chargeMonth: "",
+        arrearsForm: { unit_id: "", from_month: "", to_month: "", amount: null, notes: "Opening arrears before system launch" },
         paymentDialogOpen: false,
         paymentCharge: null,
         paymentForm: { paid_date: "", method: "Cash", reference: "", notes: "" },
@@ -726,6 +773,8 @@
           const month = now.toISOString().slice(0, 7);
           const today = now.toISOString().slice(0, 10);
           this.chargeMonth = month;
+          this.arrearsForm.from_month = month;
+          this.arrearsForm.to_month = month;
           this.paymentForm.paid_date = today;
           this.rateForm.effective_month = month;
           this.supabaseReady = APP_CONFIG.supabaseUrl.startsWith("http") && APP_CONFIG.supabaseAnonKey.length > 40;
@@ -1135,6 +1184,84 @@
           } catch (error) {
             this.message = { type: "error", text: error.message || "Could not generate charges" };
           } finally {
+            this.refreshIcons();
+          }
+        },
+
+        fillArrearsFromRate() {
+          const basisMonth = this.arrearsForm.to_month || this.chargeMonth;
+          const rate = this.rateForMonth(this.monthStart(basisMonth));
+          if (!rate) {
+            this.message = { type: "error", text: "No levy rate is set for that month" };
+            return;
+          }
+          this.arrearsForm.amount = Number(rate.amount);
+          this.message = { type: "info", text: "Arrears amount filled from the current rate" };
+        },
+
+        monthRange(fromMonth, toMonth) {
+          const start = new Date(`${fromMonth}T00:00:00Z`);
+          const end = new Date(`${toMonth}T00:00:00Z`);
+          const months = [];
+          for (const cursor = start; cursor <= end; cursor.setUTCMonth(cursor.getUTCMonth() + 1)) {
+            months.push(cursor.toISOString().slice(0, 10));
+          }
+          return months;
+        },
+
+        async addArrearsHistory() {
+          try {
+            const unit = this.units.find((item) => item.id === this.arrearsForm.unit_id);
+            if (!unit) throw new Error("Select a unit");
+            const fromMonth = this.monthStart(this.arrearsForm.from_month);
+            const toMonth = this.monthStart(this.arrearsForm.to_month);
+            const amount = Number(this.arrearsForm.amount);
+            const notes = String(this.arrearsForm.notes || "").trim();
+            if (!this.arrearsForm.from_month || !this.arrearsForm.to_month) throw new Error("Select the arrears month range");
+            if (fromMonth > toMonth) throw new Error("From month must be before or equal to to month");
+            if (!Number.isFinite(amount) || amount <= 0) throw new Error("Enter a monthly arrears amount");
+
+            if (!this.supabaseReady) {
+              let created = 0;
+              this.monthRange(fromMonth, toMonth).forEach((chargeMonth) => {
+                const exists = this.charges.some((charge) => charge.unit_id === unit.id && charge.charge_month === chargeMonth);
+                if (!exists) {
+                  this.charges.push({
+                    id: crypto.randomUUID(),
+                    unit_id: unit.id,
+                    unit,
+                    units: unit,
+                    charge_month: chargeMonth,
+                    amount_owed: amount,
+                    status: "unpaid",
+                    paid_date: null,
+                    receipt_number: null,
+                    payment_method: "",
+                    payment_reference: "",
+                    notes
+                  });
+                  created += 1;
+                }
+              });
+              this.message = { type: "info", text: `${created} arrears month(s) added. Existing months were skipped.` };
+              return;
+            }
+
+            this.busy = true;
+            const { data, error } = await this.supabase.rpc("add_unit_arrears_history", {
+              p_unit_id: unit.id,
+              p_from_month: fromMonth,
+              p_to_month: toMonth,
+              p_amount: amount,
+              p_notes: notes
+            });
+            if (error) throw error;
+            await this.loadAll();
+            this.message = { type: "info", text: `${data || 0} arrears month(s) added. Existing months were skipped.` };
+          } catch (error) {
+            this.message = { type: "error", text: error.message || "Could not add arrears history" };
+          } finally {
+            this.busy = false;
             this.refreshIcons();
           }
         },
