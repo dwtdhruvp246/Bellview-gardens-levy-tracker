@@ -54,6 +54,25 @@
     .btn-danger { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
     .status-paid { background: #dcfce7; color: #166534; }
     .status-unpaid { background: #fef3c7; color: #92400e; }
+    .sort-button {
+      display: inline-flex;
+      align-items: center;
+      gap: .3rem;
+      font: inherit;
+      text-transform: inherit;
+      color: inherit;
+    }
+    .sort-button:hover { color: #0f766e; }
+    .sort-arrow {
+      display: inline-grid;
+      height: 1rem;
+      width: 1rem;
+      place-items: center;
+      color: #94a3b8;
+      font-size: .75rem;
+      line-height: 1;
+    }
+    .sort-button.is-active .sort-arrow { color: #0f766e; }
   </style>
 </head>
 <body class="text-slate-900 antialiased" x-data="levyApp()" x-init="init()" x-cloak>
@@ -394,7 +413,11 @@
                     <span class="mb-1 block text-sm font-bold text-slate-700">Notes</span>
                     <textarea class="field min-h-20 resize-y" x-model.trim="arrearsForm.notes" placeholder="Example: Opening arrears before system launch"></textarea>
                   </label>
-                  <div class="flex h-full items-end">
+                  <div class="flex h-full flex-col justify-end gap-2">
+                    <button class="btn btn-ghost w-full" type="button" @click="clearArrearsForm">
+                      <i data-lucide="eraser" class="h-4 w-4"></i>
+                      <span>Clear</span>
+                    </button>
                     <button class="btn btn-primary w-full" type="submit">
                       <i data-lucide="history" class="h-4 w-4"></i>
                       <span>Add arrears history</span>
@@ -415,7 +438,44 @@
                 <div class="hidden overflow-auto scrollbar-thin md:block">
                   <table class="w-full min-w-[1080px] text-left text-sm">
                     <thead class="border-b border-slate-200 text-xs uppercase text-slate-500">
-                      <tr><th class="py-3">Unit</th><th>Resident</th><th>Month</th><th>Amount</th><th>Status</th><th>Receipt</th><th>Notes</th><th class="text-right">Actions</th></tr>
+                      <tr>
+                        <th class="py-3">
+                          <button class="sort-button" :class="{ 'is-active': chargeSort.key === 'unit' }" type="button" @click="sortCharges('unit')">
+                            <span>Unit</span><span class="sort-arrow" x-text="sortArrow('unit')"></span>
+                          </button>
+                        </th>
+                        <th>
+                          <button class="sort-button" :class="{ 'is-active': chargeSort.key === 'resident' }" type="button" @click="sortCharges('resident')">
+                            <span>Resident</span><span class="sort-arrow" x-text="sortArrow('resident')"></span>
+                          </button>
+                        </th>
+                        <th>
+                          <button class="sort-button" :class="{ 'is-active': chargeSort.key === 'month' }" type="button" @click="sortCharges('month')">
+                            <span>Month</span><span class="sort-arrow" x-text="sortArrow('month')"></span>
+                          </button>
+                        </th>
+                        <th>
+                          <button class="sort-button" :class="{ 'is-active': chargeSort.key === 'amount' }" type="button" @click="sortCharges('amount')">
+                            <span>Amount</span><span class="sort-arrow" x-text="sortArrow('amount')"></span>
+                          </button>
+                        </th>
+                        <th>
+                          <button class="sort-button" :class="{ 'is-active': chargeSort.key === 'status' }" type="button" @click="sortCharges('status')">
+                            <span>Status</span><span class="sort-arrow" x-text="sortArrow('status')"></span>
+                          </button>
+                        </th>
+                        <th>
+                          <button class="sort-button" :class="{ 'is-active': chargeSort.key === 'receipt' }" type="button" @click="sortCharges('receipt')">
+                            <span>Receipt</span><span class="sort-arrow" x-text="sortArrow('receipt')"></span>
+                          </button>
+                        </th>
+                        <th>
+                          <button class="sort-button" :class="{ 'is-active': chargeSort.key === 'notes' }" type="button" @click="sortCharges('notes')">
+                            <span>Notes</span><span class="sort-arrow" x-text="sortArrow('notes')"></span>
+                          </button>
+                        </th>
+                        <th class="text-right">Actions</th>
+                      </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100">
                       <template x-for="charge in filteredCharges" :key="charge.id">
@@ -737,6 +797,7 @@
         unitFilter: "",
         chargeFilter: "",
         chargeStatusFilter: "all",
+        chargeSort: { key: "month", direction: "desc" },
         chargeMonth: "",
         arrearsForm: { unit_id: "", from_month: "", to_month: "", amount: null, notes: "Opening arrears before system launch" },
         paymentDialogOpen: false,
@@ -1199,6 +1260,12 @@
           this.message = { type: "info", text: "Arrears amount filled from the current rate" };
         },
 
+        clearArrearsForm() {
+          this.arrearsForm = { unit_id: "", from_month: "", to_month: "", amount: null, notes: "" };
+          this.message = { type: "info", text: "" };
+          this.refreshIcons();
+        },
+
         monthRange(fromMonth, toMonth) {
           const start = new Date(`${fromMonth}T00:00:00Z`);
           const end = new Date(`${toMonth}T00:00:00Z`);
@@ -1427,6 +1494,30 @@
           return `Unit ${this.unitNumber(charge)}`;
         },
 
+        sortCharges(key) {
+          if (this.chargeSort.key === key) {
+            this.chargeSort.direction = this.chargeSort.direction === "asc" ? "desc" : "asc";
+          } else {
+            this.chargeSort = { key, direction: key === "month" || key === "amount" ? "desc" : "asc" };
+          }
+        },
+
+        sortArrow(key) {
+          if (this.chargeSort.key !== key) return "↕";
+          return this.chargeSort.direction === "asc" ? "↑" : "↓";
+        },
+
+        chargeSortValue(charge, key) {
+          if (key === "unit") return Number(this.unitNumber(charge)) || String(this.unitNumber(charge)).toLowerCase();
+          if (key === "resident") return this.residentName(charge).toLowerCase();
+          if (key === "month") return String(charge.charge_month || "");
+          if (key === "amount") return Number(charge.amount_owed || 0);
+          if (key === "status") return String(charge.status || "").toLowerCase();
+          if (key === "receipt") return String(charge.receipt_number || "").toLowerCase();
+          if (key === "notes") return this.paymentNoteText(charge).toLowerCase();
+          return "";
+        },
+
         get currentRate() {
           return this.rates[0] || null;
         },
@@ -1494,7 +1585,17 @@
             const matchesQuery = [this.unitNumber(charge), this.residentName(charge), charge.receipt_number, this.paymentNoteText(charge), this.monthLabel(charge.charge_month)]
               .some((value) => String(value || "").toLowerCase().includes(query));
             return matchesStatus && matchesQuery;
-          }).sort((a, b) => String(b.charge_month).localeCompare(String(a.charge_month)));
+          }).sort((a, b) => {
+            const aValue = this.chargeSortValue(a, this.chargeSort.key);
+            const bValue = this.chargeSortValue(b, this.chargeSort.key);
+            let result = 0;
+            if (typeof aValue === "number" && typeof bValue === "number") {
+              result = aValue - bValue;
+            } else {
+              result = String(aValue || "").localeCompare(String(bValue || ""), undefined, { numeric: true, sensitivity: "base" });
+            }
+            return this.chargeSort.direction === "asc" ? result : -result;
+          });
         }
       };
     }
