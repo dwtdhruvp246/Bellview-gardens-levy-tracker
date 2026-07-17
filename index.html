@@ -11,49 +11,143 @@
   <script src="https://unpkg.com/lucide@latest"></script>
   <style>
     [x-cloak] { display: none !important; }
-    html { color-scheme: light; }
+    html {
+      color-scheme: light;
+      scroll-behavior: smooth;
+    }
+    *, *::before, *::after { box-sizing: border-box; }
     body {
       min-height: 100vh;
       background:
-        linear-gradient(135deg, rgba(20, 184, 166, .08), transparent 34%),
-        linear-gradient(315deg, rgba(245, 158, 11, .10), transparent 30%),
-        #f6f7f9;
+        radial-gradient(circle at top left, rgba(14, 165, 233, .16), transparent 32rem),
+        radial-gradient(circle at 90% 0%, rgba(20, 184, 166, .14), transparent 30rem),
+        linear-gradient(180deg, #f8fafc 0%, #eef6f8 48%, #f8fafc 100%);
       letter-spacing: 0;
+      color: #0f172a;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
     }
-    .scrollbar-thin::-webkit-scrollbar { height: 8px; width: 8px; }
-    .scrollbar-thin::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 999px; }
-    .tab-active { background: #111827; color: white; }
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      z-index: -1;
+      pointer-events: none;
+      background-image:
+        linear-gradient(rgba(15, 23, 42, .035) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(15, 23, 42, .035) 1px, transparent 1px);
+      background-size: 42px 42px;
+      mask-image: linear-gradient(to bottom, rgba(0,0,0,.55), transparent 72%);
+    }
+    :focus-visible {
+      outline: 3px solid rgba(14, 165, 233, .38);
+      outline-offset: 2px;
+    }
+    .scrollbar-thin::-webkit-scrollbar { height: 10px; width: 10px; }
+    .scrollbar-thin::-webkit-scrollbar-track { background: rgba(226, 232, 240, .42); border-radius: 999px; }
+    .scrollbar-thin::-webkit-scrollbar-thumb { background: #cbd5e1; border: 2px solid rgba(255,255,255,.78); border-radius: 999px; }
+    .app-shell { min-height: 100vh; }
+    .app-header {
+      position: sticky;
+      top: 0;
+      z-index: 40;
+      border-bottom: 1px solid rgba(226, 232, 240, .9);
+      background: rgba(255, 255, 255, .84);
+      box-shadow: 0 16px 40px rgba(15, 23, 42, .06);
+      backdrop-filter: blur(20px);
+    }
+    .brand-mark {
+      display: grid;
+      height: 2.75rem;
+      width: 2.75rem;
+      place-items: center;
+      border-radius: 16px;
+      background: linear-gradient(135deg, #0f766e, #0284c7);
+      color: white;
+      box-shadow: 0 14px 28px rgba(14, 116, 144, .22);
+      font-size: .9rem;
+      font-weight: 900;
+    }
+    .glass-card {
+      border: 1px solid rgba(203, 213, 225, .78);
+      border-radius: 20px;
+      background: rgba(255, 255, 255, .86);
+      box-shadow: 0 18px 50px rgba(15, 23, 42, .075);
+      backdrop-filter: blur(18px);
+    }
+    .glass-card-soft {
+      border: 1px solid rgba(226, 232, 240, .88);
+      border-radius: 18px;
+      background: rgba(255, 255, 255, .68);
+      box-shadow: 0 10px 28px rgba(15, 23, 42, .045);
+    }
+    .stat-card {
+      position: relative;
+      overflow: hidden;
+      border: 1px solid rgba(203, 213, 225, .78);
+      border-radius: 20px;
+      background: linear-gradient(145deg, rgba(255,255,255,.95), rgba(248,250,252,.82));
+      box-shadow: 0 18px 45px rgba(15, 23, 42, .07);
+    }
+    .stat-card::after {
+      content: "";
+      position: absolute;
+      right: -2rem;
+      top: -2rem;
+      height: 7rem;
+      width: 7rem;
+      border-radius: 999px;
+      background: rgba(14, 165, 233, .08);
+    }
+    .tab-active {
+      background: linear-gradient(135deg, rgba(14, 165, 233, .14), rgba(20, 184, 166, .14));
+      color: #0f172a;
+      box-shadow: inset 0 0 0 1px rgba(14, 165, 233, .22);
+    }
     .tab-idle { color: #475569; }
+    .tab-idle:hover { background: rgba(255, 255, 255, .76); color: #0f172a; }
     .field {
       width: 100%;
-      border: 1px solid #d1d5db;
-      border-radius: 8px;
-      background: white;
-      padding: .62rem .75rem;
+      min-height: 2.9rem;
+      border: 1px solid #cbd5e1;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, .92);
+      padding: .72rem .9rem;
       outline: none;
+      color: #0f172a;
+      transition: border-color .18s ease, box-shadow .18s ease, background .18s ease;
     }
-    .field:focus { border-color: #0f766e; box-shadow: 0 0 0 3px rgba(15, 118, 110, .15); }
+    .field::placeholder { color: #94a3b8; }
+    .field:focus { border-color: #0284c7; background: white; box-shadow: 0 0 0 4px rgba(14, 165, 233, .14); }
     .btn {
       display: inline-flex;
       align-items: center;
       justify-content: center;
       gap: .45rem;
-      border-radius: 8px;
-      padding: .62rem .85rem;
-      font-weight: 700;
+      border-radius: 14px;
+      padding: .68rem 1rem;
+      font-weight: 800;
       font-size: .875rem;
-      transition: background .15s ease, color .15s ease, border-color .15s ease;
-      min-height: 2.5rem;
+      transition: transform .16s ease, background .18s ease, color .18s ease, border-color .18s ease, box-shadow .18s ease;
+      min-height: 2.75rem;
     }
-    .btn-primary { background: #0f766e; color: white; }
-    .btn-primary:hover { background: #115e59; }
-    .btn-dark { background: #111827; color: white; }
-    .btn-dark:hover { background: #030712; }
-    .btn-ghost { background: white; color: #334155; border: 1px solid #d1d5db; }
-    .btn-ghost:hover { background: #f8fafc; }
-    .btn-danger { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
-    .status-paid { background: #dcfce7; color: #166534; }
-    .status-unpaid { background: #fef3c7; color: #92400e; }
+    .btn:hover { transform: translateY(-1px); }
+    .btn:disabled { cursor: not-allowed; opacity: .65; transform: none; }
+    .btn-primary { background: linear-gradient(135deg, #0f766e, #0284c7); color: white; box-shadow: 0 12px 26px rgba(14, 116, 144, .22); }
+    .btn-primary:hover { box-shadow: 0 16px 34px rgba(14, 116, 144, .28); }
+    .btn-dark { background: linear-gradient(135deg, #0f766e, #0284c7); color: white; box-shadow: 0 12px 26px rgba(14, 116, 144, .22); }
+    .btn-dark:hover { box-shadow: 0 16px 34px rgba(14, 116, 144, .28); }
+    .btn-ghost { background: rgba(255, 255, 255, .82); color: #334155; border: 1px solid #cbd5e1; }
+    .btn-ghost:hover { background: white; border-color: #94a3b8; color: #0f172a; box-shadow: 0 10px 24px rgba(15, 23, 42, .06); }
+    .btn-danger { background: #fff1f2; color: #be123c; border: 1px solid #fecdd3; }
+    .btn-danger:hover { background: #ffe4e6; }
+    .status-paid { background: #dcfce7; color: #166534; box-shadow: inset 0 0 0 1px rgba(22, 101, 52, .08); }
+    .status-unpaid { background: #fef3c7; color: #92400e; box-shadow: inset 0 0 0 1px rgba(146, 64, 14, .08); }
+    table { border-collapse: separate; border-spacing: 0; }
+    thead { background: rgba(248, 250, 252, .88); }
+    th { color: #475569; font-weight: 900; letter-spacing: .04em; }
+    tbody tr { transition: background .16s ease; }
+    tbody tr:hover { background: rgba(240, 249, 255, .72); }
+    td, th { padding-left: .9rem; padding-right: .9rem; }
     .sort-button {
       display: inline-flex;
       align-items: center;
@@ -73,16 +167,44 @@
       line-height: 1;
     }
     .sort-button.is-active .sort-arrow { color: #0f766e; }
+    .message-alert {
+      border-radius: 16px;
+      padding: .85rem 1rem;
+      background: rgba(240, 253, 250, .84);
+      color: #0f766e;
+    }
+    .message-alert.is-error {
+      background: rgba(255, 241, 242, .9);
+      color: #be123c;
+    }
+    .mobile-nav-panel {
+      border: 1px solid rgba(203, 213, 225, .82);
+      border-radius: 20px;
+      background: rgba(255, 255, 255, .94);
+      box-shadow: 0 22px 55px rgba(15, 23, 42, .14);
+      backdrop-filter: blur(18px);
+    }
+    @media (max-width: 640px) {
+      .field { font-size: 16px; }
+      td, th { padding-left: .65rem; padding-right: .65rem; }
+    }
   </style>
 </head>
 <body class="text-slate-900 antialiased" x-data="levyApp()" x-init="init()" x-cloak>
-  <div class="min-h-screen">
+  <div class="app-shell">
     <template x-if="!session">
       <main class="mx-auto flex min-h-screen w-full max-w-lg items-center px-4 py-8">
-          <form class="w-full rounded-lg border border-slate-200 bg-white p-6 shadow-xl md:p-8" @submit.prevent="login">
+          <form class="glass-card w-full p-6 md:p-8" @submit.prevent="login">
             <div class="mb-8">
-              <h2 class="text-2xl font-black tracking-normal">Sign in</h2>
-              <p class="mt-2 text-sm text-slate-500">Username and password</p>
+              <div class="mb-5 flex items-center gap-3">
+                <div class="brand-mark">BG</div>
+                <div>
+                  <p class="text-xs font-black uppercase tracking-[.18em] text-teal-700">Levy tracker</p>
+                  <h1 class="text-xl font-black tracking-normal text-slate-950">Bellview Gardens</h1>
+                </div>
+              </div>
+              <h2 class="text-3xl font-black tracking-normal text-slate-950">Sign in</h2>
+              <p class="mt-2 text-sm font-medium text-slate-600">Use your admin or resident account details.</p>
             </div>
             <div class="space-y-4">
               <label class="block">
@@ -99,7 +221,7 @@
               </button>
               <p class="min-h-5 text-sm font-semibold" :class="message.type === 'error' ? 'text-red-700' : 'text-teal-700'" x-text="message.text"></p>
             </div>
-            <div x-show="!supabaseReady" class="mt-8 rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+            <div x-show="!supabaseReady" class="mt-8 rounded-2xl border border-amber-200 bg-amber-50/90 p-4 text-sm text-amber-900">
               <p class="font-black">Demo mode</p>
               <div class="mt-2 grid gap-2 sm:grid-cols-2">
                 <button type="button" class="btn btn-ghost bg-white" @click="quickLogin('admin')">Admin demo</button>
@@ -112,27 +234,33 @@
 
     <template x-if="session">
       <div class="min-h-screen">
-        <header class="border-b border-slate-200 bg-white/95 backdrop-blur">
-          <div class="mx-auto flex max-w-[1600px] flex-col gap-4 px-3 py-4 sm:px-4 md:flex-row md:items-center md:justify-between">
+        <header class="app-header">
+          <div class="mx-auto flex max-w-[1600px] items-center justify-between gap-4 px-4 py-3 sm:px-5 lg:px-6">
             <div class="flex items-center gap-3">
-              <div class="grid h-10 w-10 place-items-center rounded-lg bg-slate-950 text-sm font-black text-white">BG</div>
+              <div class="brand-mark">BG</div>
               <div>
                 <p class="text-xs font-black uppercase tracking-[.18em] text-teal-700" x-text="roleLabel"></p>
-                <h1 class="text-xl font-black tracking-normal">Bellview Gardens</h1>
+                <h1 class="text-xl font-black tracking-normal text-slate-950">Bellview Gardens</h1>
               </div>
             </div>
-            <div class="flex flex-wrap items-center gap-2">
+            <div class="hidden items-center gap-2 md:flex">
               <template x-if="role === 'admin'">
-                <nav class="flex max-w-full overflow-x-auto rounded-lg border border-slate-200 bg-slate-50 p-1 scrollbar-thin">
+                <nav class="flex max-w-full overflow-x-auto rounded-2xl border border-slate-200/80 bg-white/65 p-1.5 shadow-sm scrollbar-thin">
                   <template x-for="item in adminTabs" :key="item.id">
-                    <button class="whitespace-nowrap rounded-md px-3 py-2 text-sm font-bold" :class="view === item.id ? 'tab-active' : 'tab-idle'" type="button" @click="view = item.id; refreshIcons()" x-text="item.label"></button>
+                    <button class="inline-flex items-center gap-2 whitespace-nowrap rounded-xl px-3.5 py-2 text-sm font-extrabold transition" :class="view === item.id ? 'tab-active' : 'tab-idle'" type="button" @click="view = item.id; refreshIcons()">
+                      <i :data-lucide="item.icon" class="h-4 w-4"></i>
+                      <span x-text="item.label"></span>
+                    </button>
                   </template>
                 </nav>
               </template>
               <template x-if="role === 'resident'">
-                <nav class="flex max-w-full overflow-x-auto rounded-lg border border-slate-200 bg-slate-50 p-1 scrollbar-thin">
+                <nav class="flex max-w-full overflow-x-auto rounded-2xl border border-slate-200/80 bg-white/65 p-1.5 shadow-sm scrollbar-thin">
                   <template x-for="item in residentTabs" :key="item.id">
-                    <button class="whitespace-nowrap rounded-md px-3 py-2 text-sm font-bold" :class="view === item.id ? 'tab-active' : 'tab-idle'" type="button" @click="view = item.id; refreshIcons()" x-text="item.label"></button>
+                    <button class="inline-flex items-center gap-2 whitespace-nowrap rounded-xl px-3.5 py-2 text-sm font-extrabold transition" :class="view === item.id ? 'tab-active' : 'tab-idle'" type="button" @click="view = item.id; refreshIcons()">
+                      <i :data-lucide="item.icon" class="h-4 w-4"></i>
+                      <span x-text="item.label"></span>
+                    </button>
                   </template>
                 </nav>
               </template>
@@ -141,15 +269,59 @@
                 <span>Sign out</span>
               </button>
             </div>
+            <button class="btn btn-ghost w-auto md:hidden" type="button" @click="navOpen = !navOpen; refreshIcons()" aria-label="Open menu">
+              <i :data-lucide="navOpen ? 'x' : 'menu'" class="h-5 w-5"></i>
+            </button>
+          </div>
+          <div x-show="navOpen" x-transition class="px-4 pb-4 md:hidden">
+            <div class="mobile-nav-panel p-2">
+              <template x-if="role === 'admin'">
+                <nav class="grid gap-1">
+                  <template x-for="item in adminTabs" :key="item.id">
+                    <button class="inline-flex items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-extrabold transition" :class="view === item.id ? 'tab-active' : 'tab-idle'" type="button" @click="view = item.id; navOpen = false; refreshIcons()">
+                      <i :data-lucide="item.icon" class="h-4 w-4"></i>
+                      <span x-text="item.label"></span>
+                    </button>
+                  </template>
+                </nav>
+              </template>
+              <template x-if="role === 'resident'">
+                <nav class="grid gap-1">
+                  <template x-for="item in residentTabs" :key="item.id">
+                    <button class="inline-flex items-center gap-3 rounded-2xl px-4 py-3 text-left text-sm font-extrabold transition" :class="view === item.id ? 'tab-active' : 'tab-idle'" type="button" @click="view = item.id; navOpen = false; refreshIcons()">
+                      <i :data-lucide="item.icon" class="h-4 w-4"></i>
+                      <span x-text="item.label"></span>
+                    </button>
+                  </template>
+                </nav>
+              </template>
+              <button class="btn btn-ghost mt-2 w-full" type="button" @click="logout">
+                <i data-lucide="log-out" class="h-4 w-4"></i>
+                <span>Sign out</span>
+              </button>
+            </div>
           </div>
         </header>
 
-        <main class="mx-auto max-w-[1600px] px-3 py-4 sm:px-4 sm:py-6">
+        <main class="mx-auto max-w-[1600px] px-4 py-5 sm:px-5 sm:py-7 lg:px-6">
+          <section class="mb-6 glass-card p-5 sm:p-6">
+            <div class="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+              <div>
+                <p class="text-xs font-black uppercase tracking-[.18em] text-teal-700" x-text="roleLabel"></p>
+                <h2 class="mt-1 text-2xl font-black tracking-normal text-slate-950 sm:text-3xl" x-text="pageTitle"></h2>
+                <p class="mt-2 max-w-3xl text-sm font-medium leading-6 text-slate-600" x-text="pageDescription"></p>
+              </div>
+              <div class="inline-flex w-fit items-center gap-2 rounded-full border border-slate-200 bg-white/80 px-3 py-2 text-sm font-extrabold text-slate-700 shadow-sm">
+                <i data-lucide="sparkles" class="h-4 w-4 text-sky-600"></i>
+                <span>Live tracker</span>
+              </div>
+            </div>
+          </section>
           <template x-if="role === 'admin' && view === 'dashboard'">
             <section class="space-y-6">
               <div class="grid gap-4 md:grid-cols-4">
                 <template x-for="tile in dashboardTiles" :key="tile.label">
-                  <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                  <div class="stat-card p-5">
                     <div class="flex items-center justify-between">
                       <p class="text-sm font-bold text-slate-500" x-text="tile.label"></p>
                       <i :data-lucide="tile.icon" class="h-5 w-5 text-slate-400"></i>
@@ -160,7 +332,7 @@
               </div>
 
               <div class="grid gap-6 lg:grid-cols-[1fr_1fr]">
-                <section class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <section class="glass-card p-5">
                   <div class="mb-4 flex items-center justify-between">
                     <h2 class="text-lg font-black tracking-normal">Units in arrears</h2>
                     <span class="rounded-full bg-red-50 px-3 py-1 text-xs font-black text-red-700" x-text="arrears.length"></span>
@@ -185,7 +357,7 @@
                   </div>
                   <div class="grid gap-3 sm:hidden">
                     <template x-for="row in arrears" :key="row.unit_number">
-                      <article class="rounded-lg border border-slate-200 p-4">
+                      <article class="glass-card-soft p-4">
                         <div class="flex items-start justify-between gap-3">
                           <div>
                             <p class="text-xs font-black uppercase tracking-[.14em] text-slate-500">Unit</p>
@@ -201,7 +373,7 @@
                   </div>
                 </section>
 
-                <section class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <section class="glass-card p-5">
                   <div class="mb-4 flex items-center justify-between">
                     <h2 class="text-lg font-black tracking-normal">Recent payments</h2>
                     <button class="btn btn-ghost" type="button" @click="loadAll">
@@ -210,7 +382,7 @@
                   </div>
                   <div class="space-y-3">
                     <template x-for="charge in recentPayments" :key="charge.id">
-                      <div class="flex items-center justify-between rounded-lg border border-slate-200 p-3">
+                      <div class="glass-card-soft flex items-center justify-between p-3">
                         <div>
                           <p class="font-black" x-text="unitName(charge)"></p>
                           <p class="text-sm text-slate-500" x-text="monthLabel(charge.charge_month) + ' - ' + charge.receipt_number"></p>
@@ -230,7 +402,7 @@
 
           <template x-if="role === 'admin' && view === 'units'">
             <section class="space-y-4">
-              <form class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm" @submit.prevent="saveUnit">
+              <form class="glass-card p-5" @submit.prevent="saveUnit">
                 <h2 class="text-lg font-black tracking-normal" x-text="unitForm.id ? 'Edit unit' : 'Add unit'"></h2>
                 <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                   <label class="block">
@@ -290,7 +462,7 @@
                 </div>
               </form>
 
-              <section class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+              <section class="glass-card p-5">
                 <div class="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                   <h2 class="text-lg font-black tracking-normal">Units</h2>
                   <input class="field md:max-w-xs" placeholder="Filter units" x-model.trim="unitFilter">
@@ -328,7 +500,7 @@
                 </div>
                 <div class="grid gap-3 md:hidden">
                   <template x-for="unit in filteredUnits" :key="unit.id">
-                    <article class="rounded-lg border border-slate-200 p-4">
+                    <article class="glass-card-soft p-4">
                       <div class="mb-3 flex items-start justify-between gap-3">
                         <div>
                           <p class="text-xs font-black uppercase tracking-[.14em] text-slate-500">Unit</p>
@@ -376,7 +548,7 @@
                 </button>
               </div>
 
-              <section class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+              <section class="glass-card p-5">
                 <div class="mb-4 flex flex-wrap items-end justify-between gap-3">
                   <div>
                     <h2 class="text-lg font-black tracking-normal">Arrears history</h2>
@@ -426,7 +598,7 @@
                 </form>
               </section>
 
-              <section class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+              <section class="glass-card p-5">
                 <div class="mb-4 grid gap-3 md:grid-cols-[1fr_180px]">
                   <input class="field" placeholder="Filter charges" x-model.trim="chargeFilter">
                   <select class="field" x-model="chargeStatusFilter">
@@ -503,7 +675,7 @@
                 </div>
                 <div class="grid gap-3 md:hidden">
                   <template x-for="charge in filteredCharges" :key="charge.id">
-                    <article class="rounded-lg border border-slate-200 p-4">
+                    <article class="glass-card-soft p-4">
                       <div class="mb-3 flex items-start justify-between gap-3">
                         <div>
                           <p class="text-xs font-black uppercase tracking-[.14em] text-slate-500" x-text="monthLabel(charge.charge_month)"></p>
@@ -536,7 +708,7 @@
 
           <template x-if="role === 'admin' && view === 'rates'">
             <section class="grid gap-6 lg:grid-cols-[360px_1fr]">
-              <form class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm" @submit.prevent="setRate">
+              <form class="glass-card p-5" @submit.prevent="setRate">
                 <h2 class="text-lg font-black tracking-normal">Levy rate</h2>
                 <div class="mt-4 space-y-4">
                   <label class="block">
@@ -554,7 +726,7 @@
                 </div>
               </form>
 
-              <section class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+              <section class="glass-card p-5">
                 <div class="mb-4 flex items-center justify-between">
                   <h2 class="text-lg font-black tracking-normal">Rate history</h2>
                   <p class="text-sm font-black text-teal-700" x-text="currentRate ? money(currentRate.amount) : 'No rate'"></p>
@@ -577,7 +749,7 @@
                 </div>
                 <div class="grid gap-3 sm:hidden">
                   <template x-for="rate in rates" :key="rate.id">
-                    <article class="rounded-lg border border-slate-200 p-4">
+                    <article class="glass-card-soft p-4">
                       <div class="flex items-start justify-between gap-3">
                         <div>
                           <p class="text-xs font-black uppercase tracking-[.14em] text-slate-500">Effective from</p>
@@ -596,48 +768,48 @@
           <template x-if="role === 'resident'">
             <section class="space-y-6">
               <div class="grid gap-4 md:grid-cols-3">
-                <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <div class="stat-card p-5">
                   <p class="text-sm font-bold text-slate-500">Unit</p>
                   <p class="mt-3 text-2xl font-black" x-text="residentUnit?.unit_number || '-'"></p>
                 </div>
-                <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <div class="stat-card p-5">
                   <p class="text-sm font-bold text-slate-500">Outstanding</p>
                   <p class="mt-3 text-2xl font-black" x-text="money(summary.outstanding)"></p>
                 </div>
-                <div class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <div class="stat-card p-5">
                   <p class="text-sm font-bold text-slate-500">Paid months</p>
                   <p class="mt-3 text-2xl font-black" x-text="charges.filter(c => c.status === 'paid').length"></p>
                 </div>
               </div>
 
               <template x-if="view === 'resident-details'">
-                <section class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+                <section class="glass-card p-5">
                   <div class="mb-4 flex flex-col gap-1">
                     <h2 class="text-lg font-black tracking-normal">Unit details</h2>
                     <p class="text-sm font-semibold text-slate-500">Read-only contact information recorded by the admin.</p>
                   </div>
                   <div class="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                    <div class="rounded-lg border border-slate-200 p-4">
+                    <div class="glass-card-soft p-4">
                       <p class="text-xs font-black uppercase tracking-[.14em] text-slate-500">Resident</p>
                       <p class="mt-2 text-lg font-black" x-text="residentUnit?.resident_name || '-'"></p>
                     </div>
-                    <div class="rounded-lg border border-slate-200 p-4">
+                    <div class="glass-card-soft p-4">
                       <p class="text-xs font-black uppercase tracking-[.14em] text-slate-500">Resident phone</p>
                       <p class="mt-2 text-lg font-black" x-text="residentUnit?.resident_phone || '-'"></p>
                     </div>
-                    <div class="rounded-lg border border-slate-200 p-4">
+                    <div class="glass-card-soft p-4">
                       <p class="text-xs font-black uppercase tracking-[.14em] text-slate-500">Resident email</p>
                       <p class="mt-2 break-words text-lg font-black" x-text="residentUnit?.resident_email || '-'"></p>
                     </div>
-                    <div class="rounded-lg border border-slate-200 p-4">
+                    <div class="glass-card-soft p-4">
                       <p class="text-xs font-black uppercase tracking-[.14em] text-slate-500">Landlord</p>
                       <p class="mt-2 text-lg font-black" x-text="residentUnit?.landlord_name || '-'"></p>
                     </div>
-                    <div class="rounded-lg border border-slate-200 p-4">
+                    <div class="glass-card-soft p-4">
                       <p class="text-xs font-black uppercase tracking-[.14em] text-slate-500">Landlord phone</p>
                       <p class="mt-2 text-lg font-black" x-text="residentUnit?.landlord_phone || '-'"></p>
                     </div>
-                    <div class="rounded-lg border border-slate-200 p-4">
+                    <div class="glass-card-soft p-4">
                       <p class="text-xs font-black uppercase tracking-[.14em] text-slate-500">Landlord email</p>
                       <p class="mt-2 break-words text-lg font-black" x-text="residentUnit?.landlord_email || '-'"></p>
                     </div>
@@ -645,7 +817,7 @@
                 </section>
               </template>
 
-              <section x-show="view === 'resident-payments'" class="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+              <section x-show="view === 'resident-payments'" class="glass-card p-5">
                 <h2 class="mb-4 text-lg font-black tracking-normal">Payment history</h2>
                 <div class="hidden overflow-auto scrollbar-thin md:block">
                   <table class="w-full min-w-[860px] text-left text-sm">
@@ -673,7 +845,7 @@
                 </div>
                 <div class="grid gap-3 md:hidden">
                   <template x-for="charge in charges" :key="charge.id">
-                    <article class="rounded-lg border border-slate-200 p-4">
+                    <article class="glass-card-soft p-4">
                       <div class="mb-3 flex items-start justify-between gap-3">
                         <div>
                           <p class="text-xs font-black uppercase tracking-[.14em] text-slate-500">Levy month</p>
@@ -698,11 +870,11 @@
             </section>
           </template>
 
-          <div class="mt-4 min-h-6 text-sm font-bold" :class="message.type === 'error' ? 'text-red-700' : 'text-teal-700'" x-text="message.text"></div>
+          <div x-show="message.text" class="message-alert mt-5 min-h-6 text-sm font-bold" :class="{ 'is-error': message.type === 'error' }" x-text="message.text"></div>
         </main>
 
-        <div x-show="paymentDialogOpen" x-transition.opacity class="fixed inset-0 z-50 grid place-items-center bg-slate-950/55 px-4 py-6" @keydown.escape.window="closePaymentDialog">
-          <form class="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-lg border border-slate-200 bg-white p-5 shadow-2xl scrollbar-thin" @submit.prevent="recordPayment">
+        <div x-show="paymentDialogOpen" x-transition.opacity class="fixed inset-0 z-50 grid place-items-center bg-slate-700/20 px-4 py-6 backdrop-blur-sm" @keydown.escape.window="closePaymentDialog">
+          <form class="glass-card max-h-[92vh] w-full max-w-lg overflow-y-auto p-5 shadow-2xl scrollbar-thin" @submit.prevent="recordPayment">
             <div class="mb-5 flex items-start justify-between gap-4">
               <div>
                 <p class="text-xs font-black uppercase tracking-[.18em] text-teal-700">Record payment</p>
@@ -713,7 +885,7 @@
               </button>
             </div>
 
-            <div class="mb-5 grid gap-3 rounded-lg bg-slate-50 p-4 text-sm sm:grid-cols-2">
+            <div class="mb-5 grid gap-3 rounded-2xl border border-slate-200/80 bg-sky-50/70 p-4 text-sm sm:grid-cols-2">
               <div>
                 <p class="font-bold text-slate-500">Resident</p>
                 <p class="font-black" x-text="paymentCharge ? residentName(paymentCharge) : '-'"></p>
@@ -787,6 +959,7 @@
         role: null,
         roleLabel: "",
         view: "dashboard",
+        navOpen: false,
         busy: false,
         message: { type: "info", text: "" },
         loginForm: { username: "", password: "" },
@@ -819,14 +992,14 @@
         },
         rateForm: { amount: null, effective_month: "" },
         adminTabs: [
-          { id: "dashboard", label: "Dashboard" },
-          { id: "units", label: "Units" },
-          { id: "payments", label: "Payments" },
-          { id: "rates", label: "Rates" }
+          { id: "dashboard", label: "Dashboard", icon: "layout-dashboard" },
+          { id: "units", label: "Units", icon: "building-2" },
+          { id: "payments", label: "Payments", icon: "receipt-text" },
+          { id: "rates", label: "Rates", icon: "badge-dollar-sign" }
         ],
         residentTabs: [
-          { id: "resident-payments", label: "Payments" },
-          { id: "resident-details", label: "Details" }
+          { id: "resident-payments", label: "Payments", icon: "receipt-text" },
+          { id: "resident-details", label: "Details", icon: "id-card" }
         ],
 
         init() {
@@ -965,6 +1138,7 @@
           this.role = null;
           this.roleLabel = "";
           this.view = "dashboard";
+          this.navOpen = false;
           this.loginForm.password = "";
           if (!this.supabaseReady) this.seedDemo();
           this.refreshIcons();
@@ -1516,6 +1690,30 @@
           if (key === "receipt") return String(charge.receipt_number || "").toLowerCase();
           if (key === "notes") return this.paymentNoteText(charge).toLowerCase();
           return "";
+        },
+
+        get pageTitle() {
+          const titles = {
+            dashboard: "Society overview",
+            units: "Unit directory",
+            payments: "Payments and arrears",
+            rates: "Levy rates",
+            "resident-payments": "My levy payments",
+            "resident-details": "My unit details"
+          };
+          return titles[this.view] || "Bellview Gardens";
+        },
+
+        get pageDescription() {
+          const descriptions = {
+            dashboard: "Review arrears, recent collections, and the current levy position at a glance.",
+            units: "Manage resident access, contact details, landlord information, and unit status.",
+            payments: "Generate monthly charges, load opening arrears, record payments, and download receipts.",
+            rates: "Set the levy amount that will be used for future monthly charge generation.",
+            "resident-payments": "View outstanding and paid levy months, then download receipts when payments are recorded.",
+            "resident-details": "Read the resident and landlord contact information currently held by the admin."
+          };
+          return descriptions[this.view] || "";
         },
 
         get currentRate() {
