@@ -635,7 +635,7 @@
                   </label>
                   <label class="block xl:col-span-3">
                     <span class="mb-1 block text-sm font-bold text-slate-700">Notes</span>
-                    <textarea class="field min-h-20 resize-y" x-model.trim="arrearsForm.notes" placeholder="Example: Opening arrears before system launch"></textarea>
+                    <textarea class="field min-h-20 resize-y" x-model.trim="arrearsForm.notes" placeholder=""></textarea>
                   </label>
                   <div class="flex h-full flex-col justify-end gap-2">
                     <button class="btn btn-ghost w-full" type="button" @click="clearArrearsForm">
@@ -1025,7 +1025,7 @@
         chargeStatusFilter: "all",
         chargeSort: { key: "month", direction: "desc" },
         chargeMonth: "",
-        arrearsForm: { unit_id: "", from_month: "", to_month: "", amount: null, notes: "Opening arrears before system launch" },
+        arrearsForm: { unit_id: "", from_month: "", to_month: "", amount: null, notes: "" },
         paymentDialogOpen: false,
         paymentCharge: null,
         paymentForm: { paid_date: "", method: "Cash", reference: "", notes: "" },
