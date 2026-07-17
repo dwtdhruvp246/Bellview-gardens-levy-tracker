@@ -470,7 +470,59 @@
                 <div class="hidden overflow-auto scrollbar-thin md:block">
                   <table class="w-full min-w-[1460px] text-left text-sm">
                     <thead class="border-b border-slate-200 text-xs uppercase text-slate-500">
-                      <tr><th class="py-3">Unit</th><th>Resident</th><th>Resident phone</th><th>Resident email</th><th>Landlord</th><th>Landlord phone</th><th>Landlord email</th><th>Username</th><th>PIN</th><th>Status</th><th class="text-right">Actions</th></tr>
+                      <tr>
+                        <th class="py-3">
+                          <button class="sort-button" :class="{ 'is-active': unitSort.key === 'unit' }" type="button" @click="sortUnits('unit')">
+                            <span>Unit</span><span class="sort-arrow" x-text="unitSortArrow('unit')"></span>
+                          </button>
+                        </th>
+                        <th>
+                          <button class="sort-button" :class="{ 'is-active': unitSort.key === 'resident' }" type="button" @click="sortUnits('resident')">
+                            <span>Resident</span><span class="sort-arrow" x-text="unitSortArrow('resident')"></span>
+                          </button>
+                        </th>
+                        <th>
+                          <button class="sort-button" :class="{ 'is-active': unitSort.key === 'resident_phone' }" type="button" @click="sortUnits('resident_phone')">
+                            <span>Resident phone</span><span class="sort-arrow" x-text="unitSortArrow('resident_phone')"></span>
+                          </button>
+                        </th>
+                        <th>
+                          <button class="sort-button" :class="{ 'is-active': unitSort.key === 'resident_email' }" type="button" @click="sortUnits('resident_email')">
+                            <span>Resident email</span><span class="sort-arrow" x-text="unitSortArrow('resident_email')"></span>
+                          </button>
+                        </th>
+                        <th>
+                          <button class="sort-button" :class="{ 'is-active': unitSort.key === 'landlord' }" type="button" @click="sortUnits('landlord')">
+                            <span>Landlord</span><span class="sort-arrow" x-text="unitSortArrow('landlord')"></span>
+                          </button>
+                        </th>
+                        <th>
+                          <button class="sort-button" :class="{ 'is-active': unitSort.key === 'landlord_phone' }" type="button" @click="sortUnits('landlord_phone')">
+                            <span>Landlord phone</span><span class="sort-arrow" x-text="unitSortArrow('landlord_phone')"></span>
+                          </button>
+                        </th>
+                        <th>
+                          <button class="sort-button" :class="{ 'is-active': unitSort.key === 'landlord_email' }" type="button" @click="sortUnits('landlord_email')">
+                            <span>Landlord email</span><span class="sort-arrow" x-text="unitSortArrow('landlord_email')"></span>
+                          </button>
+                        </th>
+                        <th>
+                          <button class="sort-button" :class="{ 'is-active': unitSort.key === 'username' }" type="button" @click="sortUnits('username')">
+                            <span>Username</span><span class="sort-arrow" x-text="unitSortArrow('username')"></span>
+                          </button>
+                        </th>
+                        <th>
+                          <button class="sort-button" :class="{ 'is-active': unitSort.key === 'pin' }" type="button" @click="sortUnits('pin')">
+                            <span>PIN</span><span class="sort-arrow" x-text="unitSortArrow('pin')"></span>
+                          </button>
+                        </th>
+                        <th>
+                          <button class="sort-button" :class="{ 'is-active': unitSort.key === 'status' }" type="button" @click="sortUnits('status')">
+                            <span>Status</span><span class="sort-arrow" x-text="unitSortArrow('status')"></span>
+                          </button>
+                        </th>
+                        <th class="text-right">Actions</th>
+                      </tr>
                     </thead>
                     <tbody class="divide-y divide-slate-100">
                       <template x-for="unit in filteredUnits" :key="unit.id">
@@ -968,6 +1020,7 @@
         charges: [],
         residentUnit: null,
         unitFilter: "",
+        unitSort: { key: "unit", direction: "asc" },
         chargeFilter: "",
         chargeStatusFilter: "all",
         chargeSort: { key: "month", direction: "desc" },
@@ -1668,6 +1721,33 @@
           return `Unit ${this.unitNumber(charge)}`;
         },
 
+        sortUnits(key) {
+          if (this.unitSort.key === key) {
+            this.unitSort.direction = this.unitSort.direction === "asc" ? "desc" : "asc";
+          } else {
+            this.unitSort = { key, direction: "asc" };
+          }
+        },
+
+        unitSortArrow(key) {
+          if (this.unitSort.key !== key) return "↕";
+          return this.unitSort.direction === "asc" ? "↑" : "↓";
+        },
+
+        unitSortValue(unit, key) {
+          if (key === "unit") return Number(unit.unit_number) || String(unit.unit_number || "").toLowerCase();
+          if (key === "resident") return String(unit.resident_name || "").toLowerCase();
+          if (key === "resident_phone") return String(unit.resident_phone || "").toLowerCase();
+          if (key === "resident_email") return String(unit.resident_email || "").toLowerCase();
+          if (key === "landlord") return String(unit.landlord_name || "").toLowerCase();
+          if (key === "landlord_phone") return String(unit.landlord_phone || "").toLowerCase();
+          if (key === "landlord_email") return String(unit.landlord_email || "").toLowerCase();
+          if (key === "username") return String(unit.username || "").toLowerCase();
+          if (key === "pin") return String(unit.login_password || "").toLowerCase();
+          if (key === "status") return unit.is_active ? 1 : 0;
+          return "";
+        },
+
         sortCharges(key) {
           if (this.chargeSort.key === key) {
             this.chargeSort.direction = this.chargeSort.direction === "asc" ? "desc" : "asc";
@@ -1773,7 +1853,17 @@
           return this.units.filter((unit) =>
             [unit.unit_number, unit.resident_name, unit.resident_phone, unit.resident_email, unit.landlord_name, unit.landlord_phone, unit.landlord_email, unit.username]
               .some((value) => String(value || "").toLowerCase().includes(query))
-          );
+          ).sort((a, b) => {
+            const aValue = this.unitSortValue(a, this.unitSort.key);
+            const bValue = this.unitSortValue(b, this.unitSort.key);
+            let result = 0;
+            if (typeof aValue === "number" && typeof bValue === "number") {
+              result = aValue - bValue;
+            } else {
+              result = String(aValue || "").localeCompare(String(bValue || ""), undefined, { numeric: true, sensitivity: "base" });
+            }
+            return this.unitSort.direction === "asc" ? result : -result;
+          });
         },
 
         get filteredCharges() {
