@@ -1315,13 +1315,24 @@
           };
           const rpcResult = await this.supabase.rpc("update_unit", rpcPayload);
           if (!rpcResult.error) {
-            return { data: rpcResult.data, error: null };
+            const updatedUnit = Array.isArray(rpcResult.data) ? rpcResult.data[0] : rpcResult.data;
+            return { data: updatedUnit, error: null };
           }
           const missingFunction = String(rpcResult.error.message || "").includes("Could not find the function") || rpcResult.error.code === "PGRST202";
           if (!missingFunction) {
             return { data: null, error: rpcResult.error };
           }
           return await this.supabase.from("units").update(payload).eq("id", unitId).select("*").maybeSingle();
+        },
+
+        mergeUnitIntoList(unit) {
+          if (!unit?.id) return;
+          const index = this.units.findIndex((item) => item.id === unit.id);
+          if (index >= 0) {
+            this.units.splice(index, 1, { ...this.units[index], ...unit });
+          } else {
+            this.units.push(unit);
+          }
         },
 
         async saveUnit() {
@@ -1331,8 +1342,7 @@
             if (!this.supabaseReady) {
               const { password, ...unit } = this.unitForm;
               if (this.unitForm.id) {
-                const index = this.units.findIndex((item) => item.id === this.unitForm.id);
-                this.units[index] = { ...this.units[index], ...unit };
+                this.mergeUnitIntoList(unit);
               } else {
                 this.units.push({ ...unit, login_password: password, id: crypto.randomUUID() });
               }
@@ -1353,24 +1363,34 @@
               is_active: this.unitForm.is_active
             };
             let saveMessage = "Unit saved";
+            let savedUnit = null;
             if (this.unitForm.id) {
               const { data, error } = await this.updateUnitRecord(this.unitForm.id, payload);
               if (error) throw new Error(error.message || "Could not update unit");
               if (!data) throw new Error("Unit was not updated. Please sign out and sign in again, then try saving.");
+              savedUnit = data;
               saveMessage = "Unit changes saved";
             } else {
               if (!this.unitForm.password || !/^\d{6}$/.test(this.unitForm.password)) {
                 throw new Error("Generate or enter a 6-digit resident PIN");
               }
               const authUserId = await this.createResidentAuthUser(this.unitForm.username, this.unitForm.password);
-              const { error } = await this.supabase.from("units").insert({
+              const { data, error } = await this.supabase.from("units").insert({
                 ...payload,
                 auth_user_id: authUserId
-              });
+              }).select("*").single();
               if (error) throw error;
+              savedUnit = data;
               saveMessage = "Unit saved. Resident can log in with the unit username and generated PIN.";
             }
-            await this.loadAll();
+            if (savedUnit) this.mergeUnitIntoList(savedUnit);
+            try {
+              await this.loadAll();
+            } catch (refreshError) {
+              if (!savedUnit) throw refreshError;
+              console.warn("Unit saved, but the list refresh failed.", refreshError);
+            }
+            if (savedUnit) this.mergeUnitIntoList(savedUnit);
             this.resetUnitForm();
             this.message = { type: "info", text: saveMessage };
           } catch (error) {
