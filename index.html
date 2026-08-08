@@ -409,7 +409,7 @@
 
           <template x-if="role === 'admin' && view === 'units'">
             <section class="space-y-4">
-              <form class="glass-card p-5" @submit.prevent="saveUnit">
+              <form class="glass-card p-5" novalidate @submit.prevent="saveUnit">
                 <h2 class="text-lg font-black tracking-normal" x-text="unitForm.id ? 'Edit unit' : 'Add unit'"></h2>
                 <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                   <label class="block">
@@ -1299,8 +1299,35 @@
           return data.user.id;
         },
 
+        async updateUnitRecord(unitId, payload) {
+          const rpcPayload = {
+            p_unit_id: unitId,
+            p_unit_number: payload.unit_number,
+            p_resident_name: payload.resident_name,
+            p_resident_phone: payload.resident_phone,
+            p_resident_email: payload.resident_email,
+            p_landlord_name: payload.landlord_name,
+            p_landlord_phone: payload.landlord_phone,
+            p_landlord_email: payload.landlord_email,
+            p_username: payload.username,
+            p_login_password: payload.login_password,
+            p_is_active: payload.is_active
+          };
+          const rpcResult = await this.supabase.rpc("update_unit", rpcPayload);
+          if (!rpcResult.error) {
+            return { data: rpcResult.data, error: null };
+          }
+          const missingFunction = String(rpcResult.error.message || "").includes("Could not find the function") || rpcResult.error.code === "PGRST202";
+          if (!missingFunction) {
+            return { data: null, error: rpcResult.error };
+          }
+          return await this.supabase.from("units").update(payload).eq("id", unitId).select("*").maybeSingle();
+        },
+
         async saveUnit() {
           try {
+            if (!this.unitForm.unit_number) throw new Error("Enter a unit number");
+            if (!this.unitForm.username) throw new Error("Enter a username");
             if (!this.supabaseReady) {
               const { password, ...unit } = this.unitForm;
               if (this.unitForm.id) {
@@ -1327,8 +1354,8 @@
             };
             let saveMessage = "Unit saved";
             if (this.unitForm.id) {
-              const { data, error } = await this.supabase.from("units").update(payload).eq("id", this.unitForm.id).select("*").maybeSingle();
-              if (error) throw error;
+              const { data, error } = await this.updateUnitRecord(this.unitForm.id, payload);
+              if (error) throw new Error(error.message || "Could not update unit");
               if (!data) throw new Error("Unit was not updated. Please sign out and sign in again, then try saving.");
               saveMessage = "Unit changes saved";
             } else {

@@ -1,4 +1,4 @@
-const CACHE_NAME = "bellview-gardens-levy-tracker-v1";
+const CACHE_NAME = "bellview-gardens-levy-tracker-v2";
 const APP_SHELL = [
   "./",
   "./index.html",
