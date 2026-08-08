@@ -447,7 +447,7 @@
                   <label class="block" x-show="!unitForm.id">
                     <span class="mb-1 block text-sm font-bold text-slate-700">Resident PIN</span>
                     <div class="flex gap-2">
-                      <input class="field" inputmode="numeric" maxlength="6" autocomplete="new-password" x-model.trim="unitForm.password" required>
+                      <input class="field" inputmode="numeric" maxlength="6" autocomplete="new-password" x-model.trim="unitForm.password">
                       <button class="btn btn-ghost shrink-0" type="button" @click="generateUnitPin">
                         <i data-lucide="dice-5" class="h-4 w-4"></i>
                         <span>Generate</span>
@@ -1327,8 +1327,10 @@
             };
             let saveMessage = "Unit saved";
             if (this.unitForm.id) {
-              const { error } = await this.supabase.from("units").update(payload).eq("id", this.unitForm.id);
+              const { data, error } = await this.supabase.from("units").update(payload).eq("id", this.unitForm.id).select("*").maybeSingle();
               if (error) throw error;
+              if (!data) throw new Error("Unit was not updated. Please sign out and sign in again, then try saving.");
+              saveMessage = "Unit changes saved";
             } else {
               if (!this.unitForm.password || !/^\d{6}$/.test(this.unitForm.password)) {
                 throw new Error("Generate or enter a 6-digit resident PIN");
