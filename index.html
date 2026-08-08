@@ -4,6 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Bellview Gardens Levy Tracker</title>
+  <meta name="theme-color" content="#f8fafc">
+  <meta name="description" content="Bellview Gardens levy payment tracker for units, arrears, payments, and receipts.">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Bellview Levy">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon-192.png" sizes="192x192">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
   <script src="https://cdn.tailwindcss.com"></script>
   <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -464,11 +471,20 @@
 
               <section class="glass-card p-5">
                 <div class="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                  <h2 class="text-lg font-black tracking-normal">Units</h2>
-                  <input class="field md:max-w-xs" placeholder="Filter units" x-model.trim="unitFilter">
+                  <div>
+                    <h2 class="text-lg font-black tracking-normal">Units</h2>
+                    <p class="mt-1 text-sm font-semibold text-slate-500" x-text="'Total outstanding: ' + money(totalOutstandingAmount)"></p>
+                  </div>
+                  <div class="grid gap-2 md:grid-cols-[260px_auto]">
+                    <input class="field md:max-w-xs" placeholder="Filter units" x-model.trim="unitFilter">
+                    <button class="btn btn-ghost" type="button" @click="downloadOutstandingReport">
+                      <i data-lucide="file-down" class="h-4 w-4"></i>
+                      <span>Unit report PDF</span>
+                    </button>
+                  </div>
                 </div>
                 <div class="hidden overflow-auto scrollbar-thin md:block">
-                  <table class="w-full min-w-[1460px] text-left text-sm">
+                  <table class="w-full min-w-[1580px] text-left text-sm">
                     <thead class="border-b border-slate-200 text-xs uppercase text-slate-500">
                       <tr>
                         <th class="py-3">
@@ -517,6 +533,11 @@
                           </button>
                         </th>
                         <th>
+                          <button class="sort-button" :class="{ 'is-active': unitSort.key === 'outstanding' }" type="button" @click="sortUnits('outstanding')">
+                            <span>Outstanding</span><span class="sort-arrow" x-text="unitSortArrow('outstanding')"></span>
+                          </button>
+                        </th>
+                        <th>
                           <button class="sort-button" :class="{ 'is-active': unitSort.key === 'status' }" type="button" @click="sortUnits('status')">
                             <span>Status</span><span class="sort-arrow" x-text="unitSortArrow('status')"></span>
                           </button>
@@ -536,6 +557,7 @@
                           <td x-text="unit.landlord_email || '-'"></td>
                           <td x-text="unit.username"></td>
                           <td class="font-black" x-text="unit.login_password || '-'"></td>
+                          <td class="font-black text-red-700" x-text="money(unitOutstanding(unit))"></td>
                           <td>
                             <span class="rounded-full px-2.5 py-1 text-xs font-black" :class="unit.is_active ? 'bg-teal-50 text-teal-800' : 'bg-slate-100 text-slate-600'" x-text="unit.is_active ? 'Active' : 'Inactive'"></span>
                           </td>
@@ -569,6 +591,7 @@
                         <p><span class="font-bold text-slate-500">Landlord email:</span> <span x-text="unit.landlord_email || '-'"></span></p>
                         <p><span class="font-bold text-slate-500">Username:</span> <span x-text="unit.username"></span></p>
                         <p><span class="font-bold text-slate-500">PIN:</span> <span class="font-black" x-text="unit.login_password || '-'"></span></p>
+                        <p><span class="font-bold text-slate-500">Outstanding:</span> <span class="font-black text-red-700" x-text="money(unitOutstanding(unit))"></span></p>
                       </div>
                       <div class="mt-4 grid grid-cols-2 gap-2">
                         <button class="btn btn-ghost" type="button" @click="editUnit(unit)"><i data-lucide="pencil" class="h-4 w-4"></i><span>Edit</span></button>
@@ -1666,6 +1689,84 @@
           doc.save(`${APP_CONFIG.societyName.replaceAll(" ", "-")}-${charge.receipt_number || "receipt"}.pdf`);
         },
 
+        downloadOutstandingReport() {
+          const jsPDF = window.jspdf.jsPDF;
+          const doc = new jsPDF({ unit: "pt", format: "a4" });
+          const rows = this.unitReportRows();
+          const pageWidth = doc.internal.pageSize.getWidth();
+          const pageHeight = doc.internal.pageSize.getHeight();
+          const margin = 48;
+          const tableWidth = pageWidth - margin * 2;
+          const colX = [margin, margin + 110, margin + 290];
+          const generatedDate = new Intl.DateTimeFormat("en-GB", { year: "numeric", month: "short", day: "2-digit" }).format(new Date());
+
+          const drawHeader = () => {
+            doc.setFillColor(15, 118, 110);
+            doc.rect(0, 0, pageWidth, 112, "F");
+            doc.setTextColor(255, 255, 255);
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(22);
+            doc.text(APP_CONFIG.societyName, margin, 48);
+            doc.setFontSize(12);
+            doc.text("Outstanding levy summary", margin, 74);
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(10);
+            doc.text(`Generated: ${generatedDate}`, margin, 94);
+
+            doc.setTextColor(15, 23, 42);
+            doc.setFillColor(248, 250, 252);
+            doc.roundedRect(margin, 132, tableWidth, 32, 8, 8, "F");
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(10);
+            doc.text("Unit number", colX[0], 153);
+            doc.text("Total outstanding", colX[1], 153);
+            doc.text("Last month paid", colX[2], 153);
+            return 178;
+          };
+
+          let y = drawHeader();
+          doc.setFontSize(10);
+          rows.forEach((row) => {
+            if (y > pageHeight - 90) {
+              doc.addPage();
+              y = drawHeader();
+            }
+            doc.setDrawColor(226, 232, 240);
+            doc.line(margin, y - 12, pageWidth - margin, y - 12);
+            doc.setTextColor(15, 23, 42);
+            doc.setFont("helvetica", "bold");
+            doc.text(String(row.unit_number), colX[0], y);
+            doc.text(this.money(row.outstanding), colX[1], y);
+            doc.setFont("helvetica", "normal");
+            doc.text(row.last_paid_month, colX[2], y);
+            y += 28;
+          });
+
+          if (y > pageHeight - 100) {
+            doc.addPage();
+            y = drawHeader();
+          }
+          doc.setFillColor(236, 253, 245);
+          doc.roundedRect(margin, y + 8, tableWidth, 44, 8, 8, "F");
+          doc.setTextColor(15, 94, 87);
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(12);
+          doc.text("Total outstanding for all units", margin + 14, y + 36);
+          doc.text(this.money(this.totalOutstandingAmount), pageWidth - margin - 120, y + 36);
+
+          const pageCount = doc.internal.getNumberOfPages();
+          for (let page = 1; page <= pageCount; page += 1) {
+            doc.setPage(page);
+            doc.setTextColor(100, 116, 139);
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(9);
+            doc.text("Bellview Gardens Levy Tracker", margin, pageHeight - 28);
+            doc.text(`Page ${page} of ${pageCount}`, pageWidth - margin - 62, pageHeight - 28);
+          }
+
+          doc.save(`${APP_CONFIG.societyName.replaceAll(" ", "-")}-Outstanding-Summary.pdf`);
+        },
+
         usernameToEmail(username) {
           return `${String(username).trim().toLowerCase()}@resident.local`;
         },
@@ -1721,11 +1822,39 @@
           return `Unit ${this.unitNumber(charge)}`;
         },
 
+        unitOutstanding(unit) {
+          return this.charges
+            .filter((charge) => charge.unit_id === unit.id && charge.status === "unpaid")
+            .reduce((sum, charge) => sum + Number(charge.amount_owed || 0), 0);
+        },
+
+        unitLastPaidMonth(unit) {
+          const paidCharge = this.charges
+            .filter((charge) => charge.unit_id === unit.id && charge.status === "paid")
+            .sort((a, b) => String(b.charge_month || "").localeCompare(String(a.charge_month || "")))[0];
+          return paidCharge?.charge_month || "";
+        },
+
+        unitLastPaidMonthLabel(unit) {
+          const month = this.unitLastPaidMonth(unit);
+          return month ? this.monthLabel(month) : "-";
+        },
+
+        unitReportRows() {
+          return [...this.units]
+            .sort((a, b) => String(a.unit_number || "").localeCompare(String(b.unit_number || ""), undefined, { numeric: true, sensitivity: "base" }))
+            .map((unit) => ({
+              unit_number: unit.unit_number || "-",
+              outstanding: this.unitOutstanding(unit),
+              last_paid_month: this.unitLastPaidMonthLabel(unit)
+            }));
+        },
+
         sortUnits(key) {
           if (this.unitSort.key === key) {
             this.unitSort.direction = this.unitSort.direction === "asc" ? "desc" : "asc";
           } else {
-            this.unitSort = { key, direction: "asc" };
+            this.unitSort = { key, direction: key === "outstanding" ? "desc" : "asc" };
           }
         },
 
@@ -1744,6 +1873,7 @@
           if (key === "landlord_email") return String(unit.landlord_email || "").toLowerCase();
           if (key === "username") return String(unit.username || "").toLowerCase();
           if (key === "pin") return String(unit.login_password || "").toLowerCase();
+          if (key === "outstanding") return this.unitOutstanding(unit);
           if (key === "status") return unit.is_active ? 1 : 0;
           return "";
         },
@@ -1798,6 +1928,10 @@
 
         get currentRate() {
           return this.rates[0] || null;
+        },
+
+        get totalOutstandingAmount() {
+          return this.units.reduce((sum, unit) => sum + this.unitOutstanding(unit), 0);
         },
 
         get dashboardTiles() {
@@ -1886,6 +2020,12 @@
           });
         }
       };
+    }
+
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("./service-worker.js").catch(() => {});
+      });
     }
   </script>
 </body>
