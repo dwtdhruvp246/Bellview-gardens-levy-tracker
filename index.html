@@ -416,8 +416,21 @@
 
           <template x-if="role === 'admin' && view === 'units'">
             <section class="space-y-4">
-              <form class="glass-card p-5" novalidate @submit.prevent="saveUnit">
-                <h2 class="text-lg font-black tracking-normal" x-text="unitForm.id ? 'Edit unit' : 'Add unit'"></h2>
+              <div class="flex justify-end">
+                <button class="btn btn-primary" type="button" @click="openUnitForm">
+                  <i data-lucide="plus" class="h-4 w-4"></i>
+                  <span>Add unit</span>
+                </button>
+              </div>
+
+              <form x-show="unitFormOpen" x-transition class="glass-card p-5" novalidate @submit.prevent="saveUnit">
+                <div class="flex flex-wrap items-center justify-between gap-3">
+                  <h2 class="text-lg font-black tracking-normal" x-text="unitForm.id ? 'Edit unit' : 'Add unit'"></h2>
+                  <button class="btn btn-ghost" type="button" @click="closeUnitForm">
+                    <i data-lucide="chevron-up" class="h-4 w-4"></i>
+                    <span>Minimise</span>
+                  </button>
+                </div>
                 <div class="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                   <label class="block">
                     <span class="mb-1 block text-sm font-bold text-slate-700">Unit number</span>
@@ -629,7 +642,22 @@
 
           <template x-if="role === 'admin' && view === 'payments'">
             <section class="space-y-6">
-              <div class="grid gap-4 md:grid-cols-[1fr_auto_auto] md:items-end">
+              <div class="flex flex-wrap justify-end gap-2">
+                <button class="btn btn-dark" type="button" @click="openChargePanel">
+                  <i data-lucide="calendar-plus" class="h-4 w-4"></i>
+                  <span>Generate charges</span>
+                </button>
+                <button class="btn btn-primary" type="button" @click="openArrearsPanel">
+                  <i data-lucide="history" class="h-4 w-4"></i>
+                  <span>Add arrears history</span>
+                </button>
+                <button class="btn btn-ghost" type="button" @click="loadAll">
+                  <i data-lucide="refresh-cw" class="h-4 w-4"></i>
+                  <span>Refresh</span>
+                </button>
+              </div>
+
+              <div x-show="chargePanelOpen" x-transition class="glass-card grid gap-4 p-5 md:grid-cols-[1fr_auto_auto] md:items-end">
                 <label class="block">
                   <span class="mb-1 block text-sm font-bold text-slate-700">Charge month</span>
                   <input class="field" type="month" x-model="chargeMonth">
@@ -638,13 +666,13 @@
                   <i data-lucide="calendar-plus" class="h-4 w-4"></i>
                   <span>Generate charges</span>
                 </button>
-                <button class="btn btn-ghost" type="button" @click="loadAll">
-                  <i data-lucide="refresh-cw" class="h-4 w-4"></i>
-                  <span>Refresh</span>
+                <button class="btn btn-ghost" type="button" @click="closeChargePanel">
+                  <i data-lucide="chevron-up" class="h-4 w-4"></i>
+                  <span>Minimise</span>
                 </button>
               </div>
 
-              <section class="glass-card p-5">
+              <section x-show="arrearsPanelOpen" x-transition class="glass-card p-5">
                 <div class="mb-4 flex flex-wrap items-end justify-between gap-3">
                   <div>
                     <h2 class="text-lg font-black tracking-normal">Arrears history</h2>
@@ -685,6 +713,10 @@
                     <button class="btn btn-ghost w-full" type="button" @click="clearArrearsForm">
                       <i data-lucide="eraser" class="h-4 w-4"></i>
                       <span>Clear</span>
+                    </button>
+                    <button class="btn btn-ghost w-full" type="button" @click="closeArrearsPanel">
+                      <i data-lucide="chevron-up" class="h-4 w-4"></i>
+                      <span>Minimise</span>
                     </button>
                     <button class="btn btn-primary w-full" type="submit">
                       <i data-lucide="history" class="h-4 w-4"></i>
@@ -1065,6 +1097,9 @@
         busy: false,
         message: { type: "info", text: "" },
         loginForm: { username: "", password: "" },
+        unitFormOpen: false,
+        chargePanelOpen: false,
+        arrearsPanelOpen: false,
         units: [],
         rates: [],
         charges: [],
@@ -1374,6 +1409,7 @@
                 this.units.push({ ...unit, login_password: password, id: crypto.randomUUID() });
               }
               this.resetUnitForm();
+              this.unitFormOpen = false;
               this.message = { type: "info", text: "Unit saved" };
               return;
             }
@@ -1419,6 +1455,7 @@
             }
             if (savedUnit) this.mergeUnitIntoList(savedUnit);
             this.resetUnitForm();
+            this.unitFormOpen = false;
             this.message = { type: "info", text: saveMessage };
           } catch (error) {
             this.message = { type: "error", text: error.message || "Could not save unit" };
@@ -1427,7 +1464,7 @@
           }
         },
 
-        editUnit(unit) {
+        editUnit(unit, openForm = true) {
           this.unitForm = {
             id: unit.id,
             unit_number: unit.unit_number || "",
@@ -1442,6 +1479,19 @@
             login_password: unit.login_password || "",
             is_active: unit.is_active
           };
+          this.unitFormOpen = openForm;
+          this.refreshIcons();
+        },
+
+        openUnitForm() {
+          this.resetUnitForm();
+          this.unitFormOpen = true;
+          this.refreshIcons();
+        },
+
+        closeUnitForm() {
+          this.resetUnitForm();
+          this.unitFormOpen = false;
           this.refreshIcons();
         },
 
@@ -1462,8 +1512,31 @@
           };
         },
 
+        openChargePanel() {
+          this.chargePanelOpen = true;
+          this.arrearsPanelOpen = false;
+          this.refreshIcons();
+        },
+
+        closeChargePanel() {
+          this.chargePanelOpen = false;
+          this.refreshIcons();
+        },
+
+        openArrearsPanel() {
+          this.arrearsPanelOpen = true;
+          this.chargePanelOpen = false;
+          this.refreshIcons();
+        },
+
+        closeArrearsPanel() {
+          this.clearArrearsForm();
+          this.arrearsPanelOpen = false;
+          this.refreshIcons();
+        },
+
         async toggleUnit(unit) {
-          this.editUnit({ ...unit, is_active: !unit.is_active });
+          this.editUnit({ ...unit, is_active: !unit.is_active }, false);
           await this.saveUnit();
         },
 
@@ -1562,12 +1635,14 @@
                 }
               });
               this.message = { type: "info", text: "Charges generated" };
+              this.chargePanelOpen = false;
               return;
             }
             const { error } = await this.supabase.rpc("generate_monthly_charges", { target_month: targetMonth });
             if (error) throw error;
             await this.loadAll();
             this.message = { type: "info", text: "Charges generated" };
+            this.chargePanelOpen = false;
           } catch (error) {
             this.message = { type: "error", text: error.message || "Could not generate charges" };
           } finally {
@@ -1637,6 +1712,8 @@
                 }
               });
               this.message = { type: "info", text: `${created} arrears month(s) added. Existing months were skipped.` };
+              this.arrearsForm = { unit_id: "", from_month: "", to_month: "", amount: null, notes: "" };
+              this.arrearsPanelOpen = false;
               return;
             }
 
@@ -1651,6 +1728,8 @@
             if (error) throw error;
             await this.loadAll();
             this.message = { type: "info", text: `${data || 0} arrears month(s) added. Existing months were skipped.` };
+            this.arrearsForm = { unit_id: "", from_month: "", to_month: "", amount: null, notes: "" };
+            this.arrearsPanelOpen = false;
           } catch (error) {
             this.message = { type: "error", text: error.message || "Could not add arrears history" };
           } finally {
