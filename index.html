@@ -1094,6 +1094,9 @@
         unitFormOpen: false,
         chargePanelOpen: false,
         arrearsPanelOpen: false,
+        refreshTimer: null,
+        refreshIntervalMs: 10000,
+        backgroundRefreshing: false,
         units: [],
         rates: [],
         charges: [],
@@ -1150,6 +1153,10 @@
           } else {
             this.seedDemo();
           }
+          window.addEventListener("focus", () => this.refreshCurrentData(true));
+          document.addEventListener("visibilitychange", () => {
+            if (!document.hidden) this.refreshCurrentData(true);
+          });
           this.refreshIcons();
         },
 
@@ -1164,6 +1171,33 @@
           this.$nextTick(() => {
             if (window.lucide) window.lucide.createIcons();
           });
+        },
+
+        startLiveRefresh() {
+          this.stopLiveRefresh();
+          if (!this.supabaseReady) return;
+          this.refreshTimer = window.setInterval(() => this.refreshCurrentData(true), this.refreshIntervalMs);
+        },
+
+        stopLiveRefresh() {
+          if (this.refreshTimer) {
+            window.clearInterval(this.refreshTimer);
+            this.refreshTimer = null;
+          }
+        },
+
+        async refreshCurrentData(silent = true) {
+          if (!this.supabaseReady || !this.session || this.backgroundRefreshing || this.busy) return;
+          this.backgroundRefreshing = true;
+          try {
+            if (this.role === "admin") {
+              await this.loadAll({ silent });
+            } else if (this.role === "resident") {
+              await this.loadResident({ silent });
+            }
+          } finally {
+            this.backgroundRefreshing = false;
+          }
         },
 
         seedDemo() {
@@ -1261,10 +1295,12 @@
             await this.loadResident();
           }
           this.message = { type: "info", text };
+          this.startLiveRefresh();
           this.refreshIcons();
         },
 
         async logout() {
+          this.stopLiveRefresh();
           if (this.supabaseReady) await this.supabase.auth.signOut();
           this.session = null;
           this.role = null;
@@ -1276,12 +1312,13 @@
           this.refreshIcons();
         },
 
-        async loadAll() {
+        async loadAll(options = {}) {
+          const silent = Boolean(options.silent);
           if (!this.supabaseReady) {
             this.refreshIcons();
             return;
           }
-          this.busy = true;
+          if (!silent) this.busy = true;
           try {
             const [unitsRes, ratesRes, chargesRes] = await Promise.all([
               this.supabase.from("units").select("*").order("unit_number", { ascending: true }),
@@ -1295,16 +1332,21 @@
             this.rates = ratesRes.data || [];
             this.charges = chargesRes.data || [];
           } catch (error) {
-            this.message = { type: "error", text: error.message || "Could not load data" };
+            if (silent) {
+              console.warn("Background data refresh failed.", error);
+            } else {
+              this.message = { type: "error", text: error.message || "Could not load data" };
+            }
           } finally {
-            this.busy = false;
+            if (!silent) this.busy = false;
             this.refreshIcons();
           }
         },
 
-        async loadResident() {
+        async loadResident(options = {}) {
+          const silent = Boolean(options.silent);
           if (!this.supabaseReady) return;
-          this.busy = true;
+          if (!silent) this.busy = true;
           try {
             const userId = this.session.user.id;
             const unitRes = await this.supabase.from("units").select("*").eq("auth_user_id", userId).maybeSingle();
@@ -1314,9 +1356,13 @@
             if (chargesRes.error) throw chargesRes.error;
             this.charges = chargesRes.data || [];
           } catch (error) {
-            this.message = { type: "error", text: error.message || "Could not load account" };
+            if (silent) {
+              console.warn("Background resident refresh failed.", error);
+            } else {
+              this.message = { type: "error", text: error.message || "Could not load account" };
+            }
           } finally {
-            this.busy = false;
+            if (!silent) this.busy = false;
             this.refreshIcons();
           }
         },
