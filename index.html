@@ -923,10 +923,7 @@
                     </div>
                     <div class="glass-card-soft p-4">
                       <p class="text-xs font-black uppercase tracking-[.14em] text-slate-500">Resident phone</p>
-                      <p class="mt-2 text-lg font-black">
-                        <a x-show="residentUnit?.resident_phone" class="phone-link" :href="whatsAppLink(residentUnit?.resident_phone)" target="_blank" rel="noopener" x-text="residentUnit?.resident_phone"></a>
-                        <span x-show="!residentUnit?.resident_phone">-</span>
-                      </p>
+                      <p class="mt-2 text-lg font-black" x-text="residentUnit?.resident_phone || '-'"></p>
                     </div>
                     <div class="glass-card-soft p-4">
                       <p class="text-xs font-black uppercase tracking-[.14em] text-slate-500">Resident email</p>
@@ -938,10 +935,7 @@
                     </div>
                     <div class="glass-card-soft p-4">
                       <p class="text-xs font-black uppercase tracking-[.14em] text-slate-500">Landlord phone</p>
-                      <p class="mt-2 text-lg font-black">
-                        <a x-show="residentUnit?.landlord_phone" class="phone-link" :href="whatsAppLink(residentUnit?.landlord_phone)" target="_blank" rel="noopener" x-text="residentUnit?.landlord_phone"></a>
-                        <span x-show="!residentUnit?.landlord_phone">-</span>
-                      </p>
+                      <p class="mt-2 text-lg font-black" x-text="residentUnit?.landlord_phone || '-'"></p>
                     </div>
                     <div class="glass-card-soft p-4">
                       <p class="text-xs font-black uppercase tracking-[.14em] text-slate-500">Landlord email</p>
